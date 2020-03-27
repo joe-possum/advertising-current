@@ -38,5 +38,19 @@
       <value length="1" type="user" variable_length="true">0x00</value>
       <properties read="true" read_requirement="optional"/>
     </characteristic>
+    
+    <!--Notify Power-->
+    <characteristic id="notify" name="Notify Power" sourceId="custom.type" uuid="ad1e1206-31b7-4679-b4f6-627d82abc6fb">
+      <informativeText>Custom characteristic</informativeText>
+      <value length="2" type="hex" variable_length="false">0x00</value>
+      <properties indicate="true" indicate_requirement="optional"/>
+    </characteristic>
+    
+    <!--Power Settings-->
+    <characteristic id="power" name="Power Settings" sourceId="custom.type" uuid="46925f28-1a9d-453e-ab0c-f7061d5954d8">
+      <informativeText>Custom characteristic</informativeText>
+      <value length="1" type="user" variable_length="false">0x00</value>
+      <properties read="true" read_requirement="optional"/>
+    </characteristic>
   </service>
 </gatt>
