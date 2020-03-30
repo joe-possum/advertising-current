@@ -16,7 +16,7 @@ struct __attribute__((packed)) read_data {
 	struct gpio gpio[4];
 	uint32 reason, interval;
 	int16 reqTxPower, TxPower;
-	uint8 adLen;
+	uint8 adLen, pa_mode;
 } read_data;
 
 struct __attribute__((packed)) powers {

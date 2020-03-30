@@ -25,11 +25,6 @@
 #include "gatt_db.h"
 
 #include "app.h"
-//#include "dump.h"
-#ifdef DUMP
-#  undef gecko_cmd_system_set_tx_power
-#endif
-
 #include "common.h"
 #include "struct.h"
 #include <stdio.h>
@@ -66,23 +61,34 @@ void set_ad_data(void) {
 }
 
 int16 req, set, prev;
-uint8 pending = 0, conn;
+uint8 pending = 0, conn, reset_on_close;
 
 /* Main application */
 void appMain(gecko_configuration_t *pconfig)
 {
   read_data.reason = RMU_ResetCauseGet();
   RMU_ResetCauseClear();
-  pconfig->pa.pa_mode = 0;
+  if(read_data.reason & 1) {
+	  BURAM->RET[0].REG = 0;
+  } else {
+	  read_data.pa_mode = BURAM->RET[0].REG;
+	  pconfig->pa.pa_mode = read_data.pa_mode;
+  }
+  reset_on_close = 0;
   gecko_init(pconfig);
   while (1) {
     struct gecko_cmd_packet* evt;
 	evt = gecko_wait_event();
-#ifdef DUMP
-    dump_event(evt);
-#endif
     switch (BGLIB_MSG_ID(evt->header)) {
       case gecko_evt_system_boot_id:
+    	  if(read_data.reason & 1) {
+    		  struct gecko_msg_flash_ps_load_rsp_t *resp;
+    		  resp = gecko_cmd_flash_ps_load(0x4000);
+    		  if(0 == resp->result) {
+    			  BURAM->RET[0].REG = read_data.pa_mode = resp->value.data[0];
+    			  gecko_cmd_system_reset(0);
+    		  }
+    	  }
     	  read_data.reqTxPower = 0;
     	  read_data.interval = 160;
     	  read_data.adLen = 10;
@@ -91,12 +97,14 @@ void appMain(gecko_configuration_t *pconfig)
     	  for(int16 req = -300; req < 300; req++) {
     		  power.values[power.count] = gecko_cmd_system_set_tx_power(req)->set_power;
     		  if(!power.count ||(power.values[power.count] != power.values[power.count-1])) {
-    			  //printf("power: %d\n",power.values[power.count]);
     			  power.count++;
     		  }
     	  }
     	  /* no break */
       case gecko_evt_le_connection_closed_id:
+    	  if(reset_on_close) {
+    		  gecko_cmd_system_reset(0);
+    	  }
     	  set_power();
     	  set_ad_data();
           gecko_cmd_le_gap_set_advertise_timing(0, read_data.interval, read_data.interval, 0, 0);
@@ -140,6 +148,10 @@ void appMain(gecko_configuration_t *pconfig)
     			  break;
     		  case 7:
     			  read_data.adLen = ED.value.data[1];
+    			  break;
+    		  case 8:
+    			  BURAM->RET[0].REG = ED.value.data[1];
+    			  reset_on_close = 1;
     			  break;
     		  }
     	  }
