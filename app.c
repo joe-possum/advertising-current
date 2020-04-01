@@ -30,6 +30,7 @@
 #include <stdio.h>
 #include "em_device.h"
 #include "em_rmu.h"
+#include "em_cmu.h"
 
 uint16 delay;
 uint8 adData[31];
@@ -61,20 +62,23 @@ void set_ad_data(void) {
 }
 
 int16 req, set, prev;
-uint8 pending = 0, conn, reset_on_close;
+uint8 pending = 0, conn, reset_on_close, ota_on_close;
 
 /* Main application */
 void appMain(gecko_configuration_t *pconfig)
 {
   read_data.reason = RMU_ResetCauseGet();
   RMU_ResetCauseClear();
+  CMU_ClockEnable(cmuClock_BURAM,1);
   if(read_data.reason & 1) {
 	  BURAM->RET[0].REG = 0;
   } else {
 	  read_data.pa_mode = BURAM->RET[0].REG;
 	  pconfig->pa.pa_mode = read_data.pa_mode;
   }
+  CMU_ClockEnable(cmuClock_BURAM,0);
   reset_on_close = 0;
+  ota_on_close = 0;
   gecko_init(pconfig);
   while (1) {
     struct gecko_cmd_packet* evt;
@@ -102,6 +106,9 @@ void appMain(gecko_configuration_t *pconfig)
     	  }
     	  /* no break */
       case gecko_evt_le_connection_closed_id:
+    	  if(ota_on_close) {
+    		  gecko_cmd_system_reset(1);
+    	  }
     	  if(reset_on_close) {
     		  gecko_cmd_system_reset(0);
     	  }
@@ -150,8 +157,13 @@ void appMain(gecko_configuration_t *pconfig)
     			  read_data.adLen = ED.value.data[1];
     			  break;
     		  case 8:
+    			  CMU_ClockEnable(cmuClock_BURAM,1);
     			  BURAM->RET[0].REG = ED.value.data[1];
+    			  CMU_ClockEnable(cmuClock_BURAM,0);
     			  reset_on_close = 1;
+    			  break;
+    		  case 9:
+    			  ota_on_close = 1;
     			  break;
     		  }
     	  }
