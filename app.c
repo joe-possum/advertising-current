@@ -69,14 +69,18 @@ void appMain(gecko_configuration_t *pconfig)
 {
   read_data.reason = RMU_ResetCauseGet();
   RMU_ResetCauseClear();
+#if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
   CMU_ClockEnable(cmuClock_BURAM,1);
+#endif
   if(read_data.reason & 1) {
 	  BURAM->RET[0].REG = 0;
   } else {
 	  read_data.pa_mode = BURAM->RET[0].REG;
 	  pconfig->pa.pa_mode = read_data.pa_mode;
   }
+#if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
   CMU_ClockEnable(cmuClock_BURAM,0);
+#endif
   reset_on_close = 0;
   ota_on_close = 0;
   gecko_init(pconfig);
@@ -85,14 +89,6 @@ void appMain(gecko_configuration_t *pconfig)
 	evt = gecko_wait_event();
     switch (BGLIB_MSG_ID(evt->header)) {
       case gecko_evt_system_boot_id:
-    	  if(read_data.reason & 1) {
-    		  struct gecko_msg_flash_ps_load_rsp_t *resp;
-    		  resp = gecko_cmd_flash_ps_load(0x4000);
-    		  if(0 == resp->result) {
-    			  BURAM->RET[0].REG = read_data.pa_mode = resp->value.data[0];
-    			  gecko_cmd_system_reset(0);
-    		  }
-    	  }
     	  read_data.reqTxPower = 0;
     	  read_data.interval = 160;
     	  read_data.adLen = 10;
@@ -157,9 +153,13 @@ void appMain(gecko_configuration_t *pconfig)
     			  read_data.adLen = ED.value.data[1];
     			  break;
     		  case 8:
+#if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
     			  CMU_ClockEnable(cmuClock_BURAM,1);
+#endif
     			  BURAM->RET[0].REG = ED.value.data[1];
+#if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
     			  CMU_ClockEnable(cmuClock_BURAM,0);
+#endif
     			  reset_on_close = 1;
     			  break;
     		  case 9:
