@@ -72,12 +72,22 @@ void appMain(gecko_configuration_t *pconfig)
 #if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
   CMU_ClockEnable(cmuClock_BURAM,1);
 #endif
+#if defined(_SILICON_LABS_32B_SERIES_1)
+  if(read_data.reason & 1) {
+	  RTCC->RET[0].REG = 0;
+  } else {
+	  read_data.pa_mode = RTCC->RET[0].REG;
+	  pconfig->pa.pa_mode = read_data.pa_mode;
+  }
+#endif
+#if defined(_SILICON_LABS_32B_SERIES_2)
   if(read_data.reason & 1) {
 	  BURAM->RET[0].REG = 0;
   } else {
 	  read_data.pa_mode = BURAM->RET[0].REG;
 	  pconfig->pa.pa_mode = read_data.pa_mode;
   }
+#endif
 #if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
   CMU_ClockEnable(cmuClock_BURAM,0);
 #endif
@@ -156,7 +166,12 @@ void appMain(gecko_configuration_t *pconfig)
 #if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
     			  CMU_ClockEnable(cmuClock_BURAM,1);
 #endif
+#if defined(_SILICON_LABS_32B_SERIES_1)
+    			  RTCC->RET[0].REG = ED.value.data[1];
+#endif
+#if defined(_SILICON_LABS_32B_SERIES_2)
     			  BURAM->RET[0].REG = ED.value.data[1];
+#endif
 #if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
     			  CMU_ClockEnable(cmuClock_BURAM,0);
 #endif
