@@ -25,16 +25,36 @@
 #include "gatt_db.h"
 
 #include "app.h"
+#include "dump.h"
+
 #include "common.h"
 #include "struct.h"
 #include <stdio.h>
 #include "em_device.h"
 #include "em_rmu.h"
 #include "em_cmu.h"
+#include "em_gpio.h"
 
 uint16 delay;
 uint8 adData[31];
 uint8 notify = 0; /* perform notifications of power settings */
+
+struct gpio_pin_count gpio_pin_count = {{
+		_GPIO_PORT_A_PIN_COUNT,
+		_GPIO_PORT_B_PIN_COUNT,
+		_GPIO_PORT_C_PIN_COUNT,
+		_GPIO_PORT_D_PIN_COUNT,
+		_GPIO_PORT_E_PIN_COUNT,
+		_GPIO_PORT_F_PIN_COUNT,
+		_GPIO_PORT_G_PIN_COUNT,
+		_GPIO_PORT_H_PIN_COUNT,
+		_GPIO_PORT_I_PIN_COUNT,
+		_GPIO_PORT_J_PIN_COUNT,
+		_GPIO_PORT_K_PIN_COUNT
+}};
+
+const uint32 GPIO_PORT_COUNT = (sizeof(GPIO->P)/sizeof(GPIO_P_TypeDef));
+struct gpio gpio_config[12u];
 
 struct manData {
 	uint16 id;
@@ -63,6 +83,7 @@ void set_ad_data(void) {
 
 int16 req, set, prev;
 uint8 pending = 0, conn, reset_on_close, ota_on_close;
+uint16 result;
 
 /* Main application */
 void appMain(gecko_configuration_t *pconfig)
@@ -94,9 +115,13 @@ void appMain(gecko_configuration_t *pconfig)
   reset_on_close = 0;
   ota_on_close = 0;
   gecko_init(pconfig);
+  CMU_ClockEnable(cmuClock_GPIO,1);
   while (1) {
     struct gecko_cmd_packet* evt;
 	evt = gecko_wait_event();
+#ifdef DUMP
+    dump_event(evt);
+#endif
     switch (BGLIB_MSG_ID(evt->header)) {
       case gecko_evt_system_boot_id:
     	  read_data.reqTxPower = 0;
@@ -139,7 +164,17 @@ void appMain(gecko_configuration_t *pconfig)
 
       case gecko_evt_gatt_server_user_write_request_id: /********************************************* gatt_server_user_write_request **/
 #define ED evt->data.evt_gatt_server_user_write_request
-    	  if(gattdb_gpio == ED.characteristic) {
+    	  result = 0;
+    	  if(gattdb_gpio_config == ED.characteristic) {
+    		  if(4 == ED.value.len) {
+    			  printf("before: MODEL: %08x, MODEH: %08x, DOUT: %08x\n",GPIO->P[ED.value.data[0]].MODEL,GPIO->P[ED.value.data[0]].MODEH,GPIO->P[ED.value.data[0]].DOUT);
+    			  GPIO_PinModeSet(ED.value.data[0],ED.value.data[1],ED.value.data[2],ED.value.data[3]);
+    			  printf(" after: MODEL: %08x, MODEH: %08x, DOUT: %08x\n",GPIO->P[ED.value.data[0]].MODEL,GPIO->P[ED.value.data[0]].MODEH,GPIO->P[ED.value.data[0]].DOUT);
+    			  printf("GPIO_PinModeSet(%d,%d,%d,%d)",ED.value.data[0],ED.value.data[1],ED.value.data[2],ED.value.data[3]);
+    		  } else {
+    			  result = 1;
+    		  }
+    	  } else if(gattdb_gpio == ED.characteristic) {
     		  switch(ED.value.data[0]) {
     		  case 0 ... 3:
     			  GPIO_PinModeSet(ED.value.data[0],ED.value.data[1],ED.value.data[2],ED.value.data[3]);
@@ -182,13 +217,24 @@ void appMain(gecko_configuration_t *pconfig)
     			  break;
     		  }
     	  }
-		  gecko_cmd_gatt_server_send_user_write_response(ED.connection,ED.characteristic,0);
+		  gecko_cmd_gatt_server_send_user_write_response(ED.connection,ED.characteristic,result);
         break;
 #undef ED
 
       case gecko_evt_gatt_server_user_read_request_id: /*********************************************** gatt_server_user_read_request **/
 #define ED evt->data.evt_gatt_server_user_read_request
     	  switch(ED.characteristic) {
+    	  case gattdb_gpio_pin_count:
+    		  gecko_cmd_gatt_server_send_user_read_response(ED.connection,gattdb_gpio_pin_count,0,sizeof(gpio_pin_count),(uint8*)&gpio_pin_count);
+    		  break;
+    	  case gattdb_gpio_config:
+    		  for(int port = 0; port < GPIO_PORT_COUNT; port++) {
+    			  gpio_config[port].model = GPIO->P[port].MODEL;
+    			  gpio_config[port].modeh = GPIO->P[port].MODEH;
+    			  gpio_config[port].dout = GPIO->P[port].DOUT;
+    		  }
+    		  gecko_cmd_gatt_server_send_user_read_response(ED.connection,gattdb_gpio,0,sizeof(gpio_config),(uint8*)&gpio_config);
+    		  break;
     	  case gattdb_read:
     		  for(int port = gpioPortA; port <= gpioPortD; port++) {
     			  read_data.gpio[port].model = GPIO->P[port].MODEL;

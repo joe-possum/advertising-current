@@ -8,6 +8,10 @@
 #ifndef STRUCT_H_
 #define STRUCT_H_
 
+struct gpio_pin_count {
+	uint8_t port[11];
+};
+
 struct gpio {
 	uint32 model, modeh, dout;
 };
