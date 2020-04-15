@@ -25,8 +25,6 @@
 #include "gatt_db.h"
 
 #include "app.h"
-#include "dump.h"
-
 #include "common.h"
 #include "struct.h"
 #include <stdio.h>
@@ -119,9 +117,6 @@ void appMain(gecko_configuration_t *pconfig)
   while (1) {
     struct gecko_cmd_packet* evt;
 	evt = gecko_wait_event();
-#ifdef DUMP
-    dump_event(evt);
-#endif
     switch (BGLIB_MSG_ID(evt->header)) {
       case gecko_evt_system_boot_id:
     	  read_data.reqTxPower = 0;
@@ -167,10 +162,7 @@ void appMain(gecko_configuration_t *pconfig)
     	  result = 0;
     	  if(gattdb_gpio_config == ED.characteristic) {
     		  if(4 == ED.value.len) {
-    			  printf("before: MODEL: %08x, MODEH: %08x, DOUT: %08x\n",GPIO->P[ED.value.data[0]].MODEL,GPIO->P[ED.value.data[0]].MODEH,GPIO->P[ED.value.data[0]].DOUT);
     			  GPIO_PinModeSet(ED.value.data[0],ED.value.data[1],ED.value.data[2],ED.value.data[3]);
-    			  printf(" after: MODEL: %08x, MODEH: %08x, DOUT: %08x\n",GPIO->P[ED.value.data[0]].MODEL,GPIO->P[ED.value.data[0]].MODEH,GPIO->P[ED.value.data[0]].DOUT);
-    			  printf("GPIO_PinModeSet(%d,%d,%d,%d)",ED.value.data[0],ED.value.data[1],ED.value.data[2],ED.value.data[3]);
     		  } else {
     			  result = 1;
     		  }
