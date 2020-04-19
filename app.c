@@ -83,6 +83,7 @@ int16 req, set, prev;
 uint8 pending = 0, conn, reset_on_close, ota_on_close;
 uint16 result;
 
+#define N_RET 4
 void retention_read(void) {
 #if defined(_SILICON_LABS_32B_SERIES_2)
 #  if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
@@ -92,14 +93,17 @@ void retention_read(void) {
 #else
 #  if defined(_SILICON_LABS_32B_SERIES_1)
 #    define RET RTCC->RET
+    CMU_ClockEnable(cmuClock_RTCC,1);
 #  endif
 #endif
  	uint32 chksum = 0;
-	for(int i = 0; i < sizeof(RET)/sizeof(RET[0]); i++) {
+	for(int i = 0; i < N_RET; i++) {
 		chksum += RET[i].REG;
 	}
 	if(0 == chksum) {
 	  read_data.pa_mode = RET[1].REG;
+	} else {
+		read_data.flags |= 2;
 	}
 #if defined(_SILICON_LABS_32B_SERIES_2)
 #  if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
@@ -124,10 +128,11 @@ void retention_write(void) {
 #endif
  	uint32 chksum = 0;
  	RET[1].REG = read_data.pa_mode;
-	for(int i = 1; i < sizeof(RET)/sizeof(RET[0]); i++) {
+	for(int i = 1; i < N_RET; i++) {
 		chksum += RET[i].REG;
 	}
 	RET[0].REG = -chksum;
+	read_data.flags |= 1;
 #if defined(_SILICON_LABS_32B_SERIES_2)
 #  if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
     CMU_ClockEnable(cmuClock_BURAM,0);
@@ -144,6 +149,7 @@ void appMain(gecko_configuration_t *pconfig)
   read_data.reason = RMU_ResetCauseGet();
   RMU_ResetCauseClear();
   read_data.pa_mode = 0;
+  read_data.flags = 0;
   if(read_data.reason & 0x400) { /* software reset */
 	  retention_read();
   }
@@ -254,6 +260,7 @@ void appMain(gecko_configuration_t *pconfig)
     		  break;
     	  case gattdb_general_control:
     		  gecko_cmd_gatt_server_send_user_read_response(ED.connection,gattdb_general_control,0,sizeof(read_data),(uint8*)&read_data);
+    		  read_data.flags = 0;
     		  break;
     	  case gattdb_power_settings:
       		  gecko_cmd_gatt_server_send_user_read_response(ED.connection,gattdb_power_settings,0,2*power.count,(uint8*)&power.values[0]);
