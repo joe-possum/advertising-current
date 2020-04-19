@@ -101,7 +101,9 @@ void retention_read(void) {
 		chksum += RET[i].REG;
 	}
 	if(0 == chksum) {
-	  read_data.pa_mode = RET[1].REG;
+	  read_data.pa_mode = RET[1].REG & 0xff;
+	  read_data.pa_input = (RET[1].REG >> 8) & 0xff;
+	  read_data.sleep_clock_accuracy = (RET[1].REG >> 16) & 0xff;
 	} else {
 		read_data.flags |= 2;
 	}
@@ -127,7 +129,7 @@ void retention_write(void) {
 #  endif
 #endif
  	uint32 chksum = 0;
- 	RET[1].REG = read_data.pa_mode;
+ 	RET[1].REG = read_data.pa_mode | (read_data.pa_input << 8) | (read_data.sleep_clock_accuracy << 16);
 	for(int i = 1; i < N_RET; i++) {
 		chksum += RET[i].REG;
 	}
@@ -148,7 +150,9 @@ void appMain(gecko_configuration_t *pconfig)
 {
   read_data.reason = RMU_ResetCauseGet();
   RMU_ResetCauseClear();
-  read_data.pa_mode = 0;
+  read_data.pa_mode = pconfig->pa.pa_mode;
+  read_data.pa_input = pconfig->pa.input;
+  read_data.sleep_clock_accuracy = pconfig->bluetooth.sleep_clock_accuracy;
   read_data.flags = 0;
   if(read_data.reason & 0x400) { /* software reset */
 	  retention_read();
@@ -212,6 +216,9 @@ void appMain(gecko_configuration_t *pconfig)
     		  }
     	  } else if(gattdb_general_control == ED.characteristic) {
     		  switch(ED.value.data[0]) {
+    		  case 1:
+    			  ota_on_close = 1;
+    			  break;
     		  case 4:
     			  delay = ED.value.data[1] + (ED.value.data[2] << 8);
     			  break;
@@ -236,7 +243,14 @@ void appMain(gecko_configuration_t *pconfig)
     			  reset_on_close = 1;
     			  break;
     		  case 9:
-    			  ota_on_close = 1;
+    			  read_data.pa_input = ED.value.data[1];
+    			  retention_write();
+    			  reset_on_close = 1;
+    			  break;
+    		  case 10:
+    			  read_data.sleep_clock_accuracy = ED.value.data[1] | (ED.value.data[2] << 8);
+    			  retention_write();
+    			  reset_on_close = 1;
     			  break;
     		  }
     	  }

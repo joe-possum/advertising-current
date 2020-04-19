@@ -18,8 +18,8 @@ struct gpio {
 
 struct __attribute__((packed)) read_data {
 	uint32 reason, interval;
-	int16 reqTxPower, TxPower;
-	uint8 adLen, pa_mode, flags;
+	int16 reqTxPower, TxPower, sleep_clock_accuracy;
+	uint8 adLen, pa_mode, pa_input, flags;
 } read_data;
 
 struct __attribute__((packed)) powers {
