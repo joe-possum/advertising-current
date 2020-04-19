@@ -33,7 +33,6 @@
 #include "em_cmu.h"
 #include "em_gpio.h"
 
-uint16 delay;
 uint8 adData[31];
 uint8 notify = 0; /* perform notifications of power settings */
 
@@ -170,7 +169,7 @@ void appMain(gecko_configuration_t *pconfig)
     	  read_data.reqTxPower = 0;
     	  read_data.interval = 160;
     	  read_data.adLen = 10;
-    	  delay = 0;
+    	  read_data.delay = 0;
     	  power.count = 0;
     	  for(int16 req = -300; req < 300; req++) {
     		  power.values[power.count] = gecko_cmd_system_set_tx_power(req)->set_power;
@@ -181,7 +180,7 @@ void appMain(gecko_configuration_t *pconfig)
     	  /* no break */
       case gecko_evt_le_connection_closed_id:
     	  if(ota_on_close) {
-    		  gecko_cmd_system_reset(1);
+    		  gecko_cmd_dfu_reset(2);
     	  }
     	  if(reset_on_close) {
     		  gecko_cmd_system_reset(0);
@@ -189,8 +188,8 @@ void appMain(gecko_configuration_t *pconfig)
     	  set_power();
     	  set_ad_data();
           gecko_cmd_le_gap_set_advertise_timing(0, read_data.interval, read_data.interval, 0, 0);
-    	  if(delay) {
-    		  gecko_cmd_hardware_set_soft_timer(delay,0,1);
+    	  if(read_data.delay) {
+    		  gecko_cmd_hardware_set_soft_timer(read_data.delay,0,1);
     		  break;
     	  }
     	  /* no break */
@@ -200,10 +199,16 @@ void appMain(gecko_configuration_t *pconfig)
 
       case gecko_evt_le_connection_opened_id: /***************************************************************** le_connection_opened **/
 #define ED evt->data.evt_le_connection_opened
-    	  delay = 0;
+    	  read_data.delay = 0;
     	  conn = ED.connection;
         break;
 #undef ED
+
+      case gecko_evt_le_connection_parameters_id: /********************************************************* le_connection_parameters **/
+    #define ED evt->data.evt_le_connection_parameters
+      read_data.connection_interval = ED.interval;
+      break;
+    #undef ED
 
       case gecko_evt_gatt_server_user_write_request_id: /********************************************* gatt_server_user_write_request **/
 #define ED evt->data.evt_gatt_server_user_write_request
@@ -218,9 +223,11 @@ void appMain(gecko_configuration_t *pconfig)
     		  switch(ED.value.data[0]) {
     		  case 1:
     			  ota_on_close = 1;
+    			  read_data.flags |= 4;
     			  break;
     		  case 4:
-    			  delay = ED.value.data[1] + (ED.value.data[2] << 8);
+    			  memcpy(&read_data.delay,&ED.value.data[1],4);
+    			  read_data.flags |= 8;
     			  break;
     		  case 5:
     			  read_data.interval = 0;

@@ -17,7 +17,7 @@ struct gpio {
 };
 
 struct __attribute__((packed)) read_data {
-	uint32 reason, interval;
+	uint32 reason, interval, delay, connection_interval;
 	int16 reqTxPower, TxPower, sleep_clock_accuracy;
 	uint8 adLen, pa_mode, pa_input, flags;
 } read_data;
