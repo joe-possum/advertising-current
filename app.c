@@ -83,33 +83,71 @@ int16 req, set, prev;
 uint8 pending = 0, conn, reset_on_close, ota_on_close;
 uint16 result;
 
+void retention_read(void) {
+#if defined(_SILICON_LABS_32B_SERIES_2)
+#  if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
+    CMU_ClockEnable(cmuClock_BURAM,1);
+#  endif
+#  define RET BURAM->RET
+#else
+#  if defined(_SILICON_LABS_32B_SERIES_1)
+#    define RET RTCC->RET
+#  endif
+#endif
+ 	uint32 chksum = 0;
+	for(int i = 0; i < sizeof(RET)/sizeof(RET[0]); i++) {
+		chksum += RET[i].REG;
+	}
+	if(0 == chksum) {
+	  read_data.pa_mode = RET[1].REG;
+	}
+#if defined(_SILICON_LABS_32B_SERIES_2)
+#  if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
+    CMU_ClockEnable(cmuClock_BURAM,0);
+#  endif
+#else
+#  if defined(_SILICON_LABS_32B_SERIES_1)
+#  endif
+#endif
+}
+
+void retention_write(void) {
+#if defined(_SILICON_LABS_32B_SERIES_2)
+#  if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
+    CMU_ClockEnable(cmuClock_BURAM,1);
+#  endif
+#  define RET BURAM->RET
+#else
+#  if defined(_SILICON_LABS_32B_SERIES_1)
+#    define RET RTCC->RET
+#  endif
+#endif
+ 	uint32 chksum = 0;
+ 	RET[1].REG = read_data.pa_mode;
+	for(int i = 1; i < sizeof(RET)/sizeof(RET[0]); i++) {
+		chksum += RET[i].REG;
+	}
+	RET[0].REG = -chksum;
+#if defined(_SILICON_LABS_32B_SERIES_2)
+#  if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
+    CMU_ClockEnable(cmuClock_BURAM,0);
+#  endif
+#else
+#  if defined(_SILICON_LABS_32B_SERIES_1)
+#  endif
+#endif
+}
+
 /* Main application */
 void appMain(gecko_configuration_t *pconfig)
 {
   read_data.reason = RMU_ResetCauseGet();
   RMU_ResetCauseClear();
-#if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
-  CMU_ClockEnable(cmuClock_BURAM,1);
-#endif
-#if defined(_SILICON_LABS_32B_SERIES_1)
-  if(read_data.reason & 1) {
-	  RTCC->RET[0].REG = 0;
-  } else {
-	  read_data.pa_mode = RTCC->RET[0].REG;
-	  pconfig->pa.pa_mode = read_data.pa_mode;
+  read_data.pa_mode = 0;
+  if(read_data.reason & 0x400) { /* software reset */
+	  retention_read();
   }
-#endif
-#if defined(_SILICON_LABS_32B_SERIES_2)
-  if(read_data.reason & 1) {
-	  BURAM->RET[0].REG = 0;
-  } else {
-	  read_data.pa_mode = BURAM->RET[0].REG;
-	  pconfig->pa.pa_mode = read_data.pa_mode;
-  }
-#endif
-#if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
-  CMU_ClockEnable(cmuClock_BURAM,0);
-#endif
+  pconfig->pa.pa_mode = read_data.pa_mode;
   reset_on_close = 0;
   ota_on_close = 0;
   gecko_init(pconfig);
@@ -166,11 +204,8 @@ void appMain(gecko_configuration_t *pconfig)
     		  } else {
     			  result = 1;
     		  }
-    	  } else if(gattdb_gpio == ED.characteristic) {
+    	  } else if(gattdb_general_control == ED.characteristic) {
     		  switch(ED.value.data[0]) {
-    		  case 0 ... 3:
-    			  GPIO_PinModeSet(ED.value.data[0],ED.value.data[1],ED.value.data[2],ED.value.data[3]);
-    		  	  break;
     		  case 4:
     			  delay = ED.value.data[1] + (ED.value.data[2] << 8);
     			  break;
@@ -190,18 +225,8 @@ void appMain(gecko_configuration_t *pconfig)
     			  read_data.adLen = ED.value.data[1];
     			  break;
     		  case 8:
-#if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
-    			  CMU_ClockEnable(cmuClock_BURAM,1);
-#endif
-#if defined(_SILICON_LABS_32B_SERIES_1)
-    			  RTCC->RET[0].REG = ED.value.data[1];
-#endif
-#if defined(_SILICON_LABS_32B_SERIES_2)
-    			  BURAM->RET[0].REG = ED.value.data[1];
-#endif
-#if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
-    			  CMU_ClockEnable(cmuClock_BURAM,0);
-#endif
+    			  read_data.pa_mode = ED.value.data[1];
+    			  retention_write();
     			  reset_on_close = 1;
     			  break;
     		  case 9:
@@ -225,64 +250,19 @@ void appMain(gecko_configuration_t *pconfig)
     			  gpio_config[port].modeh = GPIO->P[port].MODEH;
     			  gpio_config[port].dout = GPIO->P[port].DOUT;
     		  }
-    		  gecko_cmd_gatt_server_send_user_read_response(ED.connection,gattdb_gpio,0,sizeof(gpio_config),(uint8*)&gpio_config);
+    		  gecko_cmd_gatt_server_send_user_read_response(ED.connection,gattdb_gpio_config,0,sizeof(gpio_config),(uint8*)&gpio_config);
     		  break;
-    	  case gattdb_read:
-    		  for(int port = gpioPortA; port <= gpioPortD; port++) {
-    			  read_data.gpio[port].model = GPIO->P[port].MODEL;
-    			  read_data.gpio[port].modeh = GPIO->P[port].MODEH;
-    			  read_data.gpio[port].dout = GPIO->P[port].DOUT;
-    		  }
-    		  gecko_cmd_gatt_server_send_user_read_response(ED.connection,gattdb_gpio,0,sizeof(read_data),(uint8*)&read_data);
+    	  case gattdb_general_control:
+    		  gecko_cmd_gatt_server_send_user_read_response(ED.connection,gattdb_general_control,0,sizeof(read_data),(uint8*)&read_data);
     		  break;
-    	  case gattdb_power:
-      		  gecko_cmd_gatt_server_send_user_read_response(ED.connection,gattdb_power,0,2*power.count,(uint8*)&power.values[0]);
+    	  case gattdb_power_settings:
+      		  gecko_cmd_gatt_server_send_user_read_response(ED.connection,gattdb_power_settings,0,2*power.count,(uint8*)&power.values[0]);
       		  break;
     	  default:
     	        gecko_cmd_gatt_server_send_user_read_response(ED.connection,ED.characteristic,1,0,0);
     	  }
         break;
 #undef ED
-
-      case gecko_evt_gatt_server_characteristic_status_id: /*************************************** gatt_server_characteristic_status **/
-#define ED evt->data.evt_gatt_server_characteristic_status
-    	  if(ED.characteristic == gattdb_notify) {
-    		  if(1 == ED.status_flags) {
-    			  if(2 == ED.client_config_flags)
-    	    		  notify = 1;
-    	    		  req = -300;
-    	    		  prev = -301;
-    	    		  gecko_external_signal(1);
-    		  } else if(2 == ED.status_flags) {
-    			  pending = 0;
-	    		  gecko_external_signal(1);
-    		  }
-    	  }
-        break;
-#undef ED
-
-      case gecko_evt_system_external_signal_id: /************************************************************* system_external_signal **/
-    #define ED evt->data.evt_system_external_signal
-    	  if(pending) break;
-		  gecko_cmd_system_halt(1);
-		  while(1) {
-			  if(req > 200) {
-					  break;
-			  }
-			  set = gecko_cmd_system_set_tx_power(req)->set_power;
-			  req++;
-			  if(set != prev) {
-					  prev = set;
-					  pending = 1;
-					  break;
-			  }
-		  }
-		  gecko_cmd_system_halt(0);
-          if(pending) {
-    		  gecko_cmd_gatt_server_send_characteristic_notification(conn,gattdb_notify,2,(uint8*)&set);
-          }
-        break;
-    #undef ED
 
       default:
         break;

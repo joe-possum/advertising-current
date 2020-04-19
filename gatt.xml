@@ -41,10 +41,11 @@
       <properties read="true" read_requirement="optional" write="true" write_requirement="optional"/>
     </characteristic>
     
-    <!--gpio-->
-    <characteristic id="gpio" name="gpio" sourceId="custom.type" uuid="e06df232-6239-4690-8d2c-95890e50ee9d">
+    <!--General control-->
+    <characteristic id="general_control" name="General control" sourceId="custom.type" uuid="e06df232-6239-4690-8d2c-95890e50ee9d">
+      <description>general_control</description>
       <informativeText>Custom characteristic</informativeText>
-      <value length="4" type="user" variable_length="false">0x00</value>
+      <value length="0" type="user" variable_length="false"/>
       <properties read="true" read_requirement="optional" write="true" write_requirement="optional"/>
     </characteristic>
     
@@ -55,15 +56,9 @@
       <properties read="true" read_requirement="optional"/>
     </characteristic>
     
-    <!--Notify Power-->
-    <characteristic id="notify" name="Notify Power" sourceId="custom.type" uuid="ad1e1206-31b7-4679-b4f6-627d82abc6fb">
-      <informativeText>Custom characteristic</informativeText>
-      <value length="2" type="hex" variable_length="false">0x00</value>
-      <properties indicate="true" indicate_requirement="optional"/>
-    </characteristic>
-    
     <!--Power Settings-->
-    <characteristic id="power" name="Power Settings" sourceId="custom.type" uuid="46925f28-1a9d-453e-ab0c-f7061d5954d8">
+    <characteristic id="power_settings" name="Power Settings" sourceId="custom.type" uuid="46925f28-1a9d-453e-ab0c-f7061d5954d8">
+      <description>power_setting</description>
       <informativeText>Custom characteristic</informativeText>
       <value length="1" type="user" variable_length="false">0x00</value>
       <properties read="true" read_requirement="optional"/>
