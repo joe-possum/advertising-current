@@ -225,6 +225,13 @@ void appMain(gecko_configuration_t *pconfig)
     			  ota_on_close = 1;
     			  read_data.flags |= 4;
     			  break;
+    		  case 2:
+    			  if(ED.value.data[1]) {
+    				  EMU->CTRL |= EMU_CTRL_EM2DBGEN;
+    			  } else {
+    				  EMU->CTRL &= ~EMU_CTRL_EM2DBGEN;
+    			  }
+    			  break;
     		  case 4:
     			  memcpy(&read_data.delay,&ED.value.data[1],4);
     			  read_data.flags |= 8;
