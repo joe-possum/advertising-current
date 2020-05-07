@@ -71,5 +71,13 @@
       <value length="4" type="user" variable_length="false">0x00</value>
       <properties read="true" read_requirement="optional"/>
     </characteristic>
+    
+    <!--EMU RSTCTRL-->
+    <characteristic id="emu_rstctrl" name="EMU RSTCTRL" sourceId="custom.type" uuid="83818ed0-5434-46ce-9d35-40384640b3ed">
+      <description>emu_rstctrl</description>
+      <informativeText>Custom characteristic</informativeText>
+      <value length="4" type="user" variable_length="false">0x00</value>
+      <properties read="true" read_requirement="optional"/>
+    </characteristic>
   </service>
 </gatt>

@@ -302,6 +302,9 @@ void appMain(gecko_configuration_t *pconfig)
     	  case gattdb_emu_ctrl:
     		  gecko_cmd_gatt_server_send_user_read_response(ED.connection,gattdb_emu_ctrl,0,4,(uint8*)&EMU->CTRL);
 			  break;
+    	  case gattdb_emu_rstctrl:
+    		  gecko_cmd_gatt_server_send_user_read_response(ED.connection,gattdb_emu_rstctrl,0,4,(uint8*)&EMU->RSTCTRL);
+			  break;
     	  default:
     	        gecko_cmd_gatt_server_send_user_read_response(ED.connection,ED.characteristic,1,0,0);
     	  }
