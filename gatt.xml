@@ -63,5 +63,13 @@
       <value length="1" type="user" variable_length="false">0x00</value>
       <properties read="true" read_requirement="optional"/>
     </characteristic>
+    
+    <!--EMU CTRL-->
+    <characteristic id="emu_ctrl" name="EMU CTRL" sourceId="custom.type" uuid="409e962e-1ee8-4b5b-9221-61d5239e1d36">
+      <description>emu_ctrl</description>
+      <informativeText>Custom characteristic</informativeText>
+      <value length="4" type="user" variable_length="false">0x00</value>
+      <properties read="true" read_requirement="optional"/>
+    </characteristic>
   </service>
 </gatt>

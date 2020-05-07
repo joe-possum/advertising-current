@@ -50,7 +50,7 @@ struct gpio_pin_count gpio_pin_count = {{
 		_GPIO_PORT_K_PIN_COUNT
 }};
 
-const uint32 GPIO_PORT_COUNT = (sizeof(GPIO->P)/sizeof(GPIO_P_TypeDef));
+const uint32 GPIO_PORT_COUNT = (sizeof(GPIO->P)/sizeof(GPIO_PORT_TypeDef));
 struct gpio gpio_config[12u];
 
 struct manData {
@@ -144,6 +144,12 @@ void retention_write(void) {
 #endif
 }
 
+#ifdef EMU_RSTCAUSE_SYSREQ
+#define SOFTWARE_RESET EMU_RSTCAUSE_SYSREQ
+#endif
+#ifndef SOFTWARE_RESET
+#error SOFTWARE_RESET not defined
+#endif
 /* Main application */
 void appMain(gecko_configuration_t *pconfig)
 {
@@ -153,7 +159,7 @@ void appMain(gecko_configuration_t *pconfig)
   read_data.pa_input = pconfig->pa.input;
   read_data.sleep_clock_accuracy = pconfig->bluetooth.sleep_clock_accuracy;
   read_data.flags = 0;
-  if(read_data.reason & 0x400) { /* software reset */
+  if(read_data.reason & SOFTWARE_RESET) { /* software reset */
 	  retention_read();
   }
   pconfig->pa.pa_mode = read_data.pa_mode;
@@ -293,6 +299,9 @@ void appMain(gecko_configuration_t *pconfig)
     	  case gattdb_power_settings:
       		  gecko_cmd_gatt_server_send_user_read_response(ED.connection,gattdb_power_settings,0,2*power.count,(uint8*)&power.values[0]);
       		  break;
+    	  case gattdb_emu_ctrl:
+    		  gecko_cmd_gatt_server_send_user_read_response(ED.connection,gattdb_emu_ctrl,0,4,(uint8*)&EMU->CTRL);
+			  break;
     	  default:
     	        gecko_cmd_gatt_server_send_user_read_response(ED.connection,ED.characteristic,1,0,0);
     	  }
