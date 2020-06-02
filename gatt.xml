@@ -79,5 +79,13 @@
       <value length="4" type="user" variable_length="false">0x00</value>
       <properties read="true" read_requirement="optional"/>
     </characteristic>
+    
+    <!--DCDC-->
+    <characteristic id="dcdc" name="DCDC" sourceId="custom.type" uuid="044f0c73-9f70-4186-9582-6b6a1aa8e966">
+      <description>dcdc</description>
+      <informativeText>Custom characteristic</informativeText>
+      <value length="1" type="user" variable_length="false">0x00</value>
+      <properties read="true" read_requirement="optional"/>
+    </characteristic>
   </service>
 </gatt>
