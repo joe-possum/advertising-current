@@ -32,6 +32,7 @@
 #include "em_rmu.h"
 #include "em_cmu.h"
 #include "em_gpio.h"
+#include "em_emu.h"
 
 uint8 adData[31];
 uint8 notify = 0; /* perform notifications of power settings */
@@ -103,6 +104,9 @@ void retention_read(void) {
 	  read_data.pa_mode = RET[1].REG & 0xff;
 	  read_data.pa_input = (RET[1].REG >> 8) & 0xff;
 	  read_data.sleep_clock_accuracy = (RET[1].REG >> 16) & 0xff;
+	  read_data.dcdc_mode = (RET[1].REG >> 24) & 0xff;
+	  read_data.em01vscale = RET[2].REG & 0xff;
+	  read_data.em23vscale = (RET[2].REG >> 8) & 0xff;
 	} else {
 		read_data.flags |= 2;
 	}
@@ -128,7 +132,8 @@ void retention_write(void) {
 #  endif
 #endif
  	uint32 chksum = 0;
- 	RET[1].REG = read_data.pa_mode | (read_data.pa_input << 8) | (read_data.sleep_clock_accuracy << 16);
+ 	RET[1].REG = read_data.pa_mode | (read_data.pa_input << 8) | (read_data.sleep_clock_accuracy << 16) | (read_data.dcdc_mode << 24);
+ 	RET[2].REG =  read_data.em01vscale | (read_data.em23vscale << 8);
 	for(int i = 1; i < N_RET; i++) {
 		chksum += RET[i].REG;
 	}
@@ -158,14 +163,24 @@ void appMain(gecko_configuration_t *pconfig)
   read_data.pa_mode = pconfig->pa.pa_mode;
   read_data.pa_input = pconfig->pa.input;
   read_data.sleep_clock_accuracy = pconfig->bluetooth.sleep_clock_accuracy;
+  read_data.dcdc_mode = EMU->STATUS & 1;
+#if defined(EMU_VSCALE_PRESENT)
+  read_data.em23vscale = (EMU->CTRL & _EMU_CTRL_EM23VSCALE_MASK) >> _EMU_CTRL_EM23VSCALE_SHIFT;
+  read_data.em01vscale = EMU_VScaleGet();
+#endif
   read_data.flags = 0;
   if(read_data.reason & SOFTWARE_RESET) { /* software reset */
 	  retention_read();
   }
   pconfig->pa.pa_mode = read_data.pa_mode;
+  if(read_data.dcdc_mode != (EMU->STATUS & 1)) EMU_DCDCModeSet((EMU_DcdcMode_TypeDef)read_data.dcdc_mode);
   reset_on_close = 0;
   ota_on_close = 0;
   gecko_init(pconfig);
+  EMU_VScaleEM01(read_data.em01vscale,1);
+#if defined(EMU_VSCALE_PRESENT)
+  EMU->CTRL = (EMU->CTRL & ~_EMU_CTRL_EM23VSCALE_MASK) | ((uint32_t)read_data.em23vscale << _EMU_CTRL_EM23VSCALE_SHIFT);
+#endif
   CMU_ClockEnable(cmuClock_GPIO,1);
   while (1) {
     struct gecko_cmd_packet* evt;
