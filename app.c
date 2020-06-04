@@ -51,7 +51,12 @@ struct gpio_pin_count gpio_pin_count = {{
 		_GPIO_PORT_K_PIN_COUNT
 }};
 
+#ifdef _SILICON_LABS_32B_SERIES_1
+const uint32 GPIO_PORT_COUNT = (sizeof(GPIO->P)/sizeof(GPIO_P_TypeDef));
+#endif
+#ifdef _SILICON_LABS_32B_SERIES_2
 const uint32 GPIO_PORT_COUNT = (sizeof(GPIO->P)/sizeof(GPIO_PORT_TypeDef));
+#endif
 struct gpio gpio_config[12u];
 
 struct manData {
@@ -152,6 +157,9 @@ void retention_write(void) {
 #ifdef EMU_RSTCAUSE_SYSREQ
 #define SOFTWARE_RESET EMU_RSTCAUSE_SYSREQ
 #endif
+#ifdef RMU_RSTCAUSE_SYSREQRST
+#define SOFTWARE_RESET RMU_RSTCAUSE_SYSREQRST
+#endif
 #ifndef SOFTWARE_RESET
 #error SOFTWARE_RESET not defined
 #endif
@@ -248,6 +256,7 @@ void appMain(gecko_configuration_t *pconfig)
     			  ota_on_close = 1;
     			  read_data.flags |= 4;
     			  break;
+#ifdef _SILICON_LABS_32B_SERIES_2
     		  case 2:
     			  if(ED.value.data[1]) {
     				  EMU->CTRL |= EMU_CTRL_EM2DBGEN;
@@ -255,6 +264,7 @@ void appMain(gecko_configuration_t *pconfig)
     				  EMU->CTRL &= ~EMU_CTRL_EM2DBGEN;
     			  }
     			  break;
+#endif
     		  case 4:
     			  memcpy(&read_data.delay,&ED.value.data[1],4);
     			  read_data.flags |= 8;
@@ -319,9 +329,11 @@ void appMain(gecko_configuration_t *pconfig)
     	  case gattdb_emu_ctrl:
     		  gecko_cmd_gatt_server_send_user_read_response(ED.connection,gattdb_emu_ctrl,0,4,(uint8*)&EMU->CTRL);
 			  break;
+#ifndef RMU
     	  case gattdb_emu_rstctrl:
     		  gecko_cmd_gatt_server_send_user_read_response(ED.connection,gattdb_emu_rstctrl,0,4,(uint8*)&EMU->RSTCTRL);
 			  break;
+#endif
 #ifdef DCDC
     	  case gattdb_dcdc:
     		  gecko_cmd_gatt_server_send_user_read_response(ED.connection,gattdb_emu_rstctrl,0,0x18,(uint8*)&DCDC->IPVERSION);
