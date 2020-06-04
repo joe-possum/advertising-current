@@ -173,11 +173,13 @@ void appMain(gecko_configuration_t *pconfig)
 	  retention_read();
   }
   pconfig->pa.pa_mode = read_data.pa_mode;
-  if(read_data.dcdc_mode != (EMU->STATUS & 1)) EMU_DCDCModeSet((EMU_DcdcMode_TypeDef)read_data.dcdc_mode);
+  //if(read_data.dcdc_mode != (EMU->STATUS & 1)) EMU_DCDCModeSet((EMU_DcdcMode_TypeDef)read_data.dcdc_mode);
   reset_on_close = 0;
   ota_on_close = 0;
   gecko_init(pconfig);
+#if defined(EMU_VSCALE_PRESENT)
   EMU_VScaleEM01(read_data.em01vscale,1);
+#endif
 #if defined(EMU_VSCALE_PRESENT)
   EMU->CTRL = (EMU->CTRL & ~_EMU_CTRL_EM23VSCALE_MASK) | ((uint32_t)read_data.em23vscale << _EMU_CTRL_EM23VSCALE_SHIFT);
 #endif
@@ -320,9 +322,11 @@ void appMain(gecko_configuration_t *pconfig)
     	  case gattdb_emu_rstctrl:
     		  gecko_cmd_gatt_server_send_user_read_response(ED.connection,gattdb_emu_rstctrl,0,4,(uint8*)&EMU->RSTCTRL);
 			  break;
+#ifdef DCDC
     	  case gattdb_dcdc:
     		  gecko_cmd_gatt_server_send_user_read_response(ED.connection,gattdb_emu_rstctrl,0,0x18,(uint8*)&DCDC->IPVERSION);
 			  break;
+#endif
     	  default:
     	        gecko_cmd_gatt_server_send_user_read_response(ED.connection,ED.characteristic,1,0,0);
     	  }
