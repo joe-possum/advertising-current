@@ -85,7 +85,7 @@ void set_ad_data(void) {
 }
 
 int16 req, set, prev;
-uint8 pending = 0, conn, reset_on_close, ota_on_close;
+uint8 pending = 0, conn, reset_on_close, ota_on_close, dtm_tx_on_close, dtm_tx_ch;
 uint16 result;
 
 #define N_RET 4
@@ -184,6 +184,7 @@ void appMain(gecko_configuration_t *pconfig)
   //if(read_data.dcdc_mode != (EMU->STATUS & 1)) EMU_DCDCModeSet((EMU_DcdcMode_TypeDef)read_data.dcdc_mode);
   reset_on_close = 0;
   ota_on_close = 0;
+  dtm_tx_on_close = 0;
   gecko_init(pconfig);
 #if defined(EMU_VSCALE_PRESENT)
   EMU_VScaleEM01(read_data.em01vscale,1);
@@ -216,6 +217,9 @@ void appMain(gecko_configuration_t *pconfig)
     	  if(reset_on_close) {
     		  gecko_cmd_system_reset(0);
     	  }
+    	  if(dtm_tx_on_close) {
+    		  gecko_cmd_test_dtm_tx(test_pkt_prbs9,255,dtm_tx_ch,test_phy_1m);
+    	  }
     	  set_power();
     	  set_ad_data();
           gecko_cmd_le_gap_set_advertise_timing(0, read_data.interval, read_data.interval, 0, 0);
@@ -225,6 +229,10 @@ void appMain(gecko_configuration_t *pconfig)
     	  }
     	  /* no break */
       case gecko_evt_hardware_soft_timer_id:
+    	if(dtm_tx_on_close) {
+    		gecko_cmd_test_dtm_end();
+    		dtm_tx_on_close = 0;
+    	}
         gecko_cmd_le_gap_start_advertising(0, le_gap_user_data, le_gap_connectable_scannable);
         break;
 
@@ -298,6 +306,10 @@ void appMain(gecko_configuration_t *pconfig)
     			  read_data.sleep_clock_accuracy = ED.value.data[1] | (ED.value.data[2] << 8);
     			  retention_write();
     			  reset_on_close = 1;
+    			  break;
+    		  case 11:
+    			  dtm_tx_on_close = 1;
+    			  dtm_tx_ch = ED.value.data[1];
     			  break;
     		  }
     	  }
