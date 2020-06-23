@@ -33,3 +33,4 @@
 #endif
 #define HAL_DCDC_BYPASS                   (1)
 #endif
+#define MAX_ADVERTISERS 2

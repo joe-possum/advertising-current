@@ -25,6 +25,8 @@
 #include "gatt_db.h"
 
 #include "app.h"
+#include "dump.h"
+
 #include "common.h"
 #include "struct.h"
 #include <stdio.h>
@@ -33,6 +35,8 @@
 #include "em_cmu.h"
 #include "em_gpio.h"
 #include "em_emu.h"
+#include "sleep.h"
+#include <stdlib.h>
 
 uint8 adData[31];
 uint8 notify = 0; /* perform notifications of power settings */
@@ -63,20 +67,44 @@ struct manData {
 	uint16 id;
 } manData = { .id = 0xffff, };
 
+uint16 mtu = 27;
 struct read_data read_data;
-struct powers power;
+struct power_settings power_settings;
 
 void set_power(void) {
 	struct gecko_msg_system_set_tx_power_rsp_t *resp;
+	gecko_cmd_system_halt(1);
 	resp = gecko_cmd_system_set_tx_power(read_data.reqTxPower);
+	gecko_cmd_system_halt(0);
 	read_data.TxPower = resp->set_power;
 }
+
+uint8 measurement_active;
+struct tx_power tx_power = { .id = 0xffff };
+
+void adv_random_power(void) {
+  int16 try;
+  do {
+    try = read_data.random_lower + (rand() % (read_data.random_upper - read_data.random_lower + 1));
+  } while(try == tx_power.attempt);
+  tx_power.attempt = try;
+  gecko_cmd_system_halt(1);
+  tx_power.set = gecko_cmd_system_set_tx_power(tx_power.attempt)->set_power;
+  gecko_cmd_system_halt(0);
+  uint8 buf[31];
+  uint8 len = 0;
+  len += ad_name(&buf[len],"TX Power");
+  len += ad_manufacturer(&buf[len],sizeof(tx_power),(uint8*)&tx_power);
+  gecko_cmd_le_gap_bt5_set_adv_data(1,0,len,buf);
+  gecko_cmd_le_gap_start_advertising(1,le_gap_user_data,le_gap_non_connectable);
+}
+
 
 void set_ad_data(void) {
 	uint8 len = 0;
 	len += ad_flags(&adData[len],6);
 	if(read_data.adLen > (len+7)) {
-		len += ad_name(&adData[len],"4182A");
+		len += ad_name(&adData[len],"BG Control");
 	}
 	if(read_data.adLen > (len + 4)) {
 		ad_manufacturer(&adData[len],read_data.adLen-len-2,(uint8*)&manData);
@@ -85,8 +113,17 @@ void set_ad_data(void) {
 }
 
 int16 req, set, prev;
-uint8 pending = 0, conn, reset_on_close, ota_on_close, dtm_tx_on_close, dtm_tx_ch;
+uint8 pending = 0, conn, reset_on_close, ota_on_close;
 uint16 result;
+
+void send_power_settings(uint8 connection, uint16 handle, uint16 offset) {
+	uint8 *ptr = (uint8*)&power_settings;
+	uint16 total = 2 + 2*power_settings.count - offset;
+	if(total > (mtu-1)) {
+		total = mtu - 1;
+	}
+	gecko_cmd_gatt_server_send_user_read_response(connection,handle,0,total,ptr+offset);
+}
 
 #define N_RET 4
 void retention_read(void) {
@@ -184,7 +221,6 @@ void appMain(gecko_configuration_t *pconfig)
   //if(read_data.dcdc_mode != (EMU->STATUS & 1)) EMU_DCDCModeSet((EMU_DcdcMode_TypeDef)read_data.dcdc_mode);
   reset_on_close = 0;
   ota_on_close = 0;
-  dtm_tx_on_close = 0;
   gecko_init(pconfig);
 #if defined(EMU_VSCALE_PRESENT)
   EMU_VScaleEM01(read_data.em01vscale,1);
@@ -196,17 +232,21 @@ void appMain(gecko_configuration_t *pconfig)
   while (1) {
     struct gecko_cmd_packet* evt;
 	evt = gecko_wait_event();
+#ifdef DUMP
+    dump_event(evt);
+#endif
     switch (BGLIB_MSG_ID(evt->header)) {
       case gecko_evt_system_boot_id:
     	  read_data.reqTxPower = 0;
     	  read_data.interval = 160;
     	  read_data.adLen = 10;
     	  read_data.delay = 0;
-    	  power.count = 0;
+    	  measurement_active = 0;
+    	  power_settings.count = 0;
     	  for(int16 req = -300; req < 300; req++) {
-    		  power.values[power.count] = gecko_cmd_system_set_tx_power(req)->set_power;
-    		  if(!power.count ||(power.values[power.count] != power.values[power.count-1])) {
-    			  power.count++;
+    		  power_settings.values[power_settings.count] = gecko_cmd_system_set_tx_power(req)->set_power;
+    		  if(!power_settings.count ||(power_settings.values[power_settings.count] != power_settings.values[power_settings.count-1])) {
+    			  power_settings.count++;
     		  }
     	  }
     	  /* no break */
@@ -217,24 +257,57 @@ void appMain(gecko_configuration_t *pconfig)
     	  if(reset_on_close) {
     		  gecko_cmd_system_reset(0);
     	  }
-    	  if(dtm_tx_on_close) {
-    		  gecko_cmd_test_dtm_tx(test_pkt_prbs9,255,dtm_tx_ch,test_phy_1m);
-    	  }
     	  set_power();
     	  set_ad_data();
-          gecko_cmd_le_gap_set_advertise_timing(0, read_data.interval, read_data.interval, 0, 0);
+    	  if(read_data.delay) {
+    		  measurement_active = 1;
+    		  switch(read_data.measurement_mode) {
+    		  case DMM_EM1:
+    			  SLEEP_SleepBlockBegin(sleepEM2);
+    			  break;
+    		  case DMM_EM2:
+    			  break;
+    		  case DMM_DTM_TX:
+        		  gecko_cmd_test_dtm_tx(test_pkt_prbs9,255,read_data.dtm_channel,test_phy_1m);
+        		  break;
+    		  case DMM_RANDOM:
+    	          gecko_cmd_le_gap_set_advertise_timing(1, read_data.interval, read_data.interval, 0, read_data.random_count);
+    			  adv_random_power();
+    			  break;
+    		  default:
+        		  measurement_active = 0;
+    			  read_data.delay = 0;
+    			  break;
+    		  }
+    	  }
     	  if(read_data.delay) {
     		  gecko_cmd_hardware_set_soft_timer(read_data.delay,0,1);
     		  break;
     	  }
     	  /* no break */
       case gecko_evt_hardware_soft_timer_id:
-    	if(dtm_tx_on_close) {
-    		gecko_cmd_test_dtm_end();
-    		dtm_tx_on_close = 0;
-    	}
-        gecko_cmd_le_gap_start_advertising(0, le_gap_user_data, le_gap_connectable_scannable);
-        break;
+    	  if(read_data.delay) {
+    		  switch(read_data.measurement_mode) {
+    		  case DMM_EM1:
+    			  SLEEP_SleepBlockEnd(sleepEM2);
+    			  break;
+    		  case DMM_EM2:
+    			  break;
+    		  case DMM_DTM_TX:
+    			  gecko_cmd_test_dtm_end();
+        		  break;
+    		  case DMM_RANDOM:
+    			  measurement_active = 0;
+    			  gecko_cmd_le_gap_stop_advertising(1);
+    			  break;
+    		  default:
+    			  break;
+    		  }
+    		  read_data.delay = 0;
+    	  }
+    	  gecko_cmd_le_gap_set_advertise_timing(0, read_data.interval, read_data.interval, 0, 0);
+    	  gecko_cmd_le_gap_start_advertising(0, le_gap_user_data, le_gap_connectable_scannable);
+    	  break;
 
       case gecko_evt_le_connection_opened_id: /***************************************************************** le_connection_opened **/
 #define ED evt->data.evt_le_connection_opened
@@ -247,6 +320,12 @@ void appMain(gecko_configuration_t *pconfig)
     #define ED evt->data.evt_le_connection_parameters
       read_data.connection_interval = ED.interval;
       break;
+    #undef ED
+
+      case gecko_evt_gatt_mtu_exchanged_id: /********************************************************************* gatt_mtu_exchanged **/
+    #define ED evt->data.evt_gatt_mtu_exchanged
+        mtu = ED.mtu;
+        break;
     #undef ED
 
       case gecko_evt_gatt_server_user_write_request_id: /********************************************* gatt_server_user_write_request **/
@@ -273,9 +352,20 @@ void appMain(gecko_configuration_t *pconfig)
     			  }
     			  break;
 #endif
-    		  case 4:
-    			  memcpy(&read_data.delay,&ED.value.data[1],4);
-    			  read_data.flags |= 8;
+    		  case 3:
+    			  switch(ED.value.data[1]) {
+    			  case DMM_EM1:
+    			  case DMM_EM2:
+    			  case DMM_RANDOM:
+    			  case DMM_DTM_TX:
+        			  read_data.measurement_mode = ED.value.data[1];
+        			  memcpy(&read_data.delay,&ED.value.data[2],4);
+        			  read_data.flags |= 8;
+        			  break;
+    			  default:
+    				  result = bg_err_not_implemented;
+    				  break;
+    			  }
     			  break;
     		  case 5:
     			  read_data.interval = 0;
@@ -308,8 +398,7 @@ void appMain(gecko_configuration_t *pconfig)
     			  reset_on_close = 1;
     			  break;
     		  case 11:
-    			  dtm_tx_on_close = 1;
-    			  dtm_tx_ch = ED.value.data[1];
+    			  read_data.dtm_channel = ED.value.data[1];
     			  break;
     		  }
     	  }
@@ -336,7 +425,7 @@ void appMain(gecko_configuration_t *pconfig)
     		  read_data.flags = 0;
     		  break;
     	  case gattdb_power_settings:
-      		  gecko_cmd_gatt_server_send_user_read_response(ED.connection,gattdb_power_settings,0,2*power.count,(uint8*)&power.values[0]);
+    		  send_power_settings(ED.connection,ED.characteristic,ED.offset);
       		  break;
     	  case gattdb_emu_ctrl:
     		  gecko_cmd_gatt_server_send_user_read_response(ED.connection,gattdb_emu_ctrl,0,4,(uint8*)&EMU->CTRL);
@@ -356,6 +445,12 @@ void appMain(gecko_configuration_t *pconfig)
     	  }
         break;
 #undef ED
+
+    	  case gecko_evt_le_gap_adv_timeout_id: /********************************************************************* le_gap_adv_timeout **/
+    	#define ED evt->data.evt_le_gap_adv_timeout
+    	    if(measurement_active) adv_random_power();
+    	    break;
+    	#undef ED
 
       default:
         break;
