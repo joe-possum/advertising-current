@@ -25,7 +25,7 @@
 #include "gatt_db.h"
 
 #include "app.h"
-#include "dump.h"
+//#include "dump.h"
 
 #include "common.h"
 #include "struct.h"
@@ -263,6 +263,7 @@ void appMain(gecko_configuration_t *pconfig)
     		  measurement_active = 1;
     		  switch(read_data.measurement_mode) {
     		  case DMM_EM1:
+    			  while(1);
     			  SLEEP_SleepBlockBegin(sleepEM2);
     			  break;
     		  case DMM_EM2:
@@ -273,6 +274,15 @@ void appMain(gecko_configuration_t *pconfig)
     		  case DMM_RANDOM:
     	          gecko_cmd_le_gap_set_advertise_timing(1, read_data.interval, read_data.interval, 0, read_data.random_count);
     			  adv_random_power();
+    			  break;
+    		  case DMM_TEST:
+    			  printf("Before clock swap\n");
+    			  CMU_OscillatorEnable(cmuOsc_HFRCO,1,1);
+    			  CMU_OscillatorTuningSet(cmuOsc_HFRCO,cmuHFRCOFreq_38M0Hz);
+    			  CMU_ClockSelectSet(cmuClock_HF,cmuSelect_HFRCO);
+    			  CMU_OscillatorEnable(cmuOsc_HFXO, false, true);
+    			  printf("After clock swap\n");
+    			  while(1);
     			  break;
     		  default:
         		  measurement_active = 0;
@@ -358,6 +368,7 @@ void appMain(gecko_configuration_t *pconfig)
     			  case DMM_EM2:
     			  case DMM_RANDOM:
     			  case DMM_DTM_TX:
+    			  case DMM_TEST:
         			  read_data.measurement_mode = ED.value.data[1];
         			  memcpy(&read_data.delay,&ED.value.data[2],4);
         			  read_data.flags |= 8;

@@ -21,7 +21,7 @@ struct __attribute__((__packed__)) tx_power {
   int16 attempt, set;
 };
 
-enum dut_measurement_modes { DMM_EM1, DMM_EM2, DMM_EM3, DMM_EM4H, DMM_EM4S, DMM_DTM_TX, DMM_RANDOM };
+enum dut_measurement_modes { DMM_EM1, DMM_EM2, DMM_EM3, DMM_EM4H, DMM_EM4S, DMM_DTM_TX, DMM_RANDOM, DMM_TEST };
 
 struct __attribute__((packed)) read_data {
 	uint32 reason, interval, delay, connection_interval;
