@@ -263,7 +263,6 @@ void appMain(gecko_configuration_t *pconfig)
     		  measurement_active = 1;
     		  switch(read_data.measurement_mode) {
     		  case DMM_EM1:
-    			  while(1);
     			  SLEEP_SleepBlockBegin(sleepEM2);
     			  break;
     		  case DMM_EM2:
@@ -277,10 +276,12 @@ void appMain(gecko_configuration_t *pconfig)
     			  break;
     		  case DMM_TEST:
     			  printf("Before clock swap\n");
+#  if defined(_SILICON_LABS_32B_SERIES_1)
     			  CMU_OscillatorEnable(cmuOsc_HFRCO,1,1);
     			  CMU_OscillatorTuningSet(cmuOsc_HFRCO,cmuHFRCOFreq_38M0Hz);
     			  CMU_ClockSelectSet(cmuClock_HF,cmuSelect_HFRCO);
     			  CMU_OscillatorEnable(cmuOsc_HFXO, false, true);
+#  endif
     			  printf("After clock swap\n");
     			  while(1);
     			  break;
