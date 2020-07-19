@@ -87,5 +87,13 @@
       <value length="1" type="user" variable_length="false">0x00</value>
       <properties read="true" read_requirement="optional"/>
     </characteristic>
+    
+    <!--CMU-->
+    <characteristic id="cmu" name="CMU" sourceId="custom.type" uuid="299c3dc2-5e0e-4cc4-b4a4-6cc8808af3e6">
+      <description>cmu</description>
+      <informativeText>Custom characteristic</informativeText>
+      <value length="1" type="user" variable_length="false">0x00</value>
+      <properties read="true" read_requirement="optional"/>
+    </characteristic>
   </service>
 </gatt>

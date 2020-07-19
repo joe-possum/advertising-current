@@ -48,8 +48,17 @@ struct __attribute__((packed)) lynx_dcdc {
 	em23ctrl0, ien, status, lockstatus;
 };
 
+struct __attribute__((packed)) lynx_cmu {
+	uint32 ipversion, status, ien, calctrl, calcnt, clken0, clken1,
+	sysclkctrl, traceclkctrl, exportclkctrl, dpllrefclkctrl,
+	em01grpaclkctrl, em01grpbclkctrl, em23grpaclkctrl, em4grpaclkctrl,
+	iadcclkctrl, wdog0clkctrl, euart0clkctrl, rtccclkctrl,
+	cryptoaccclkctrl, radioclkctrl;
+};
+
 union peripheral_data {
 	struct lynx_dcdc lynx_dcdc;
+	struct lynx_cmu lynx_cmu;
 };
 
 #endif /* STRUCT_H_ */

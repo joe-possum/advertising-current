@@ -152,6 +152,36 @@ uint8 get_dcdc(void) {
 }
 #endif
 
+uint8 get_cmu(void) {
+#if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
+	struct lynx_cmu *p = &peripheral_data.lynx_cmu;
+	p->ipversion = CMU->IPVERSION;
+	p->status = CMU->STATUS;
+	p->ien = CMU->IEN;
+	p->calctrl = CMU->CALCTRL;
+	p->calcnt = CMU->CALCNT;
+	p->clken0 = CMU->CLKEN0;
+	p->clken1 = CMU->CLKEN1;
+	p->sysclkctrl = CMU->SYSCLKCTRL;
+	p->traceclkctrl = CMU->TRACECLKCTRL;
+	p->exportclkctrl = CMU->EXPORTCLKCTRL;
+	p->dpllrefclkctrl = CMU->DPLLREFCLKCTRL;
+	p->em01grpaclkctrl = CMU->EM01GRPACLKCTRL;
+	p->em01grpbclkctrl = CMU->EM01GRPBCLKCTRL;
+	p->em23grpaclkctrl = CMU->EM23GRPACLKCTRL;
+	p->em4grpaclkctrl = CMU->EM4GRPACLKCTRL;
+	p->iadcclkctrl = CMU->IADCCLKCTRL;
+	p->wdog0clkctrl = CMU->WDOG0CLKCTRL;
+	p->euart0clkctrl = CMU->EUART0CLKCTRL;
+	p->rtccclkctrl = CMU->RTCCCLKCTRL;
+	p->cryptoaccclkctrl = CMU->CRYPTOACCCLKCTRL;
+	p->radioclkctrl = CMU->RADIOCLKCTRL;
+	return sizeof(struct lynx_cmu);
+#else
+#  error get_cmu is not implemented for this family
+#endif
+}
+
 #define N_RET 4
 void retention_read(void) {
 #if defined(_SILICON_LABS_32B_SERIES_2)
@@ -555,9 +585,13 @@ void appMain(gecko_configuration_t *pconfig)
 #endif
 #ifdef DCDC
     	  case gattdb_dcdc:
-    		  gecko_cmd_gatt_server_send_user_read_response(ED.connection,gattdb_emu_rstctrl,0,get_dcdc(),(uint8*)&peripheral_data);
+    		  gecko_cmd_gatt_server_send_user_read_response(ED.connection,gattdb_dcdc,0,get_dcdc(),(uint8*)&peripheral_data);
 			  break;
 #endif
+    	  case gattdb_cmu:
+    		  gecko_cmd_gatt_server_send_user_read_response(ED.connection,gattdb_cmu,0,get_cmu(),(uint8*)&peripheral_data);
+			  break;
+
     	  default:
     	        gecko_cmd_gatt_server_send_user_read_response(ED.connection,ED.characteristic,1,0,0);
     	  }
