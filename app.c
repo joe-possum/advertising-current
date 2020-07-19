@@ -37,6 +37,9 @@
 #include "em_emu.h"
 #include "sleep.h"
 #include <stdlib.h>
+#include "bsp.h"
+#include "pti.h"
+#include "mx25flash_spi.h"
 
 uint8 adData[31];
 uint8 notify = 0; /* perform notifications of power settings */
@@ -71,6 +74,9 @@ uint16 mtu = 27;
 struct read_data read_data;
 struct power_settings power_settings;
 
+#ifdef DUMP
+#undef gecko_cmd_system_set_tx_power
+#endif
 void set_power(void) {
 	struct gecko_msg_system_set_tx_power_rsp_t *resp;
 	gecko_cmd_system_halt(1);
@@ -125,6 +131,27 @@ void send_power_settings(uint8 connection, uint16 handle, uint16 offset) {
 	gecko_cmd_gatt_server_send_user_read_response(connection,handle,0,total,ptr+offset);
 }
 
+union peripheral_data peripheral_data;
+
+#ifdef DCDC
+uint8 get_dcdc(void) {
+#if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
+	struct lynx_dcdc *p = &peripheral_data.lynx_dcdc;
+	p->ipversion = DCDC->IPVERSION;
+	p->en = DCDC->EN;
+	p->ctrl = DCDC->CTRL;
+	p->em12ctrl0 = DCDC->EM01CTRL0;
+	p->em23ctrl0 = DCDC->EM23CTRL0;
+	p->ien = DCDC->IEN;
+	p->status = DCDC->STATUS;
+	p->lockstatus = DCDC->LOCKSTATUS;
+	return sizeof(struct lynx_dcdc);
+#else
+#  error get_dcdc is not implemented for this family
+#endif
+}
+#endif
+
 #define N_RET 4
 void retention_read(void) {
 #if defined(_SILICON_LABS_32B_SERIES_2)
@@ -141,7 +168,13 @@ void retention_read(void) {
  	uint32 chksum = 0;
 	for(int i = 0; i < N_RET; i++) {
 		chksum += RET[i].REG;
+#ifdef DUMP
+		printf("RET[%d].REG: %08lx\n",i,RET[i].REG);
+#endif
 	}
+#ifdef DUMP
+	printf("chksum: %08lx\n",chksum);
+#endif
 	if(0 == chksum) {
 	  read_data.pa_mode = RET[1].REG & 0xff;
 	  read_data.pa_input = (RET[1].REG >> 8) & 0xff;
@@ -149,8 +182,10 @@ void retention_read(void) {
 	  read_data.dcdc_mode = (RET[1].REG >> 24) & 0xff;
 	  read_data.em01vscale = RET[2].REG & 0xff;
 	  read_data.em23vscale = (RET[2].REG >> 8) & 0xff;
+	  read_data.pti = (RET[2].REG >> 16) & 1;
+	  read_data.mx25_dp = (RET[2].REG >> 17) & 1;
 	} else {
-		read_data.flags |= 2;
+		read_data.flags |= FLAGS_CHKSUM_FAIL;
 	}
 #if defined(_SILICON_LABS_32B_SERIES_2)
 #  if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
@@ -174,13 +209,21 @@ void retention_write(void) {
 #  endif
 #endif
  	uint32 chksum = 0;
+ 	uint16 init_bits = 0;
+ 	if(read_data.pti) init_bits |= 1;
+ 	if(read_data.mx25_dp) init_bits |= 2;
  	RET[1].REG = read_data.pa_mode | (read_data.pa_input << 8) | (read_data.sleep_clock_accuracy << 16) | (read_data.dcdc_mode << 24);
- 	RET[2].REG =  read_data.em01vscale | (read_data.em23vscale << 8);
+ 	RET[2].REG =  read_data.em01vscale | (read_data.em23vscale << 8) | (init_bits << 16);
 	for(int i = 1; i < N_RET; i++) {
 		chksum += RET[i].REG;
 	}
 	RET[0].REG = -chksum;
-	read_data.flags |= 1;
+#ifdef DUMP
+	for(int i = 1; i < N_RET; i++) {
+		printf("RET[%d].REG: %08lx\n",i,RET[i].REG);
+	}
+#endif
+	read_data.flags |= FLAGS_RETENTION_WRITE;
 #if defined(_SILICON_LABS_32B_SERIES_2)
 #  if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
     CMU_ClockEnable(cmuClock_BURAM,0);
@@ -205,22 +248,56 @@ void appMain(gecko_configuration_t *pconfig)
 {
   read_data.reason = RMU_ResetCauseGet();
   RMU_ResetCauseClear();
+  /*----------------------------------------------------------------- Set default values of parameters */
+  read_data.devinfo_part = DEVINFO->PART;
   read_data.pa_mode = pconfig->pa.pa_mode;
   read_data.pa_input = pconfig->pa.input;
   read_data.sleep_clock_accuracy = pconfig->bluetooth.sleep_clock_accuracy;
-  read_data.dcdc_mode = EMU->STATUS & 1;
+#ifdef DCDC
+#  if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
+  	  read_data.dcdc_mode = DCDC->STATUS & 1;
+#  else
+#    error DCDC mode not defined
+#  endif
+#endif
 #if defined(EMU_VSCALE_PRESENT)
   read_data.em23vscale = (EMU->CTRL & _EMU_CTRL_EM23VSCALE_MASK) >> _EMU_CTRL_EM23VSCALE_SHIFT;
   read_data.em01vscale = EMU_VScaleGet();
 #endif
   read_data.flags = 0;
+  read_data.vcom = HAL_VCOM_ENABLE;
+  read_data.pti = 1;
+  read_data.mx25_dp = 1;
+  /* ---------------------------------------------------------------- Override defaults with save settings is valid */
   if(read_data.reason & SOFTWARE_RESET) { /* software reset */
 	  retention_read();
   }
   pconfig->pa.pa_mode = read_data.pa_mode;
-  //if(read_data.dcdc_mode != (EMU->STATUS & 1)) EMU_DCDCModeSet((EMU_DcdcMode_TypeDef)read_data.dcdc_mode);
   reset_on_close = 0;
   ota_on_close = 0;
+#ifdef DCDC
+  if(read_data.dcdc_mode) {
+#  ifdef DUMP
+	  printf("EMU_DCDCModeSet(%d)\n",read_data.dcdc_mode);
+#  endif
+	  EMU_DCDCModeSet((EMU_DcdcMode_TypeDef)read_data.dcdc_mode);
+  }
+#endif
+
+  if(read_data.mx25_dp) {
+#ifdef DUMP
+	  printf("MX25_init();\nMX25_DP();\nMX25_deinit();\n");
+#endif
+	  MX25_init();
+	  MX25_DP();
+	  MX25_deinit();
+  }
+  if(read_data.pti) {
+#ifdef DUMP
+	  printf("configEnablePti();\n");
+#endif
+	  configEnablePti();
+  }
   gecko_init(pconfig);
 #if defined(EMU_VSCALE_PRESENT)
   EMU_VScaleEM01(read_data.em01vscale,1);
@@ -255,6 +332,7 @@ void appMain(gecko_configuration_t *pconfig)
     		  gecko_cmd_dfu_reset(2);
     	  }
     	  if(reset_on_close) {
+			  retention_write();
     		  gecko_cmd_system_reset(0);
     	  }
     	  set_power();
@@ -352,7 +430,7 @@ void appMain(gecko_configuration_t *pconfig)
     		  switch(ED.value.data[0]) {
     		  case 1:
     			  ota_on_close = 1;
-    			  read_data.flags |= 4;
+    			  read_data.flags |= FLAGS_OTA_ON_CLOSE;
     			  break;
 #ifdef _SILICON_LABS_32B_SERIES_2
     		  case 2:
@@ -372,13 +450,44 @@ void appMain(gecko_configuration_t *pconfig)
     			  case DMM_TEST:
         			  read_data.measurement_mode = ED.value.data[1];
         			  memcpy(&read_data.delay,&ED.value.data[2],4);
-        			  read_data.flags |= 8;
+        			  read_data.flags |= FLAGS_MEASUREMENT_ACTIVATED;
         			  break;
     			  default:
     				  result = bg_err_not_implemented;
     				  break;
     			  }
     			  break;
+
+			  case 4:
+				  switch(ED.value.data[1]) {
+				  case 0:
+					  if(read_data.pti != ED.value.data[2]) {
+						  reset_on_close = 1;
+						  read_data.pti = ED.value.data[2];
+					  }
+					  break;
+				  case 1:
+					  if(read_data.mx25_dp != ED.value.data[2]) {
+						  reset_on_close = 1;
+						  read_data.mx25_dp = ED.value.data[2];
+					  }
+					  break;
+				  case 2:
+#ifdef DCDC
+#  ifdef DUMP
+					  printf("EMU_DCDCModeSet(%d)\n",ED.value.data[2]);
+
+#  endif
+					  EMU_DCDCModeSet((EMU_DcdcMode_TypeDef)ED.value.data[2]);
+					  read_data.dcdc_mode = ED.value.data[2];
+#endif
+					  break;
+    			  default:
+    				  result = bg_err_not_implemented;
+    				  break;
+				  }
+				  break;
+
     		  case 5:
     			  read_data.interval = 0;
     			  for(int i = 0; i < 4; i++) {
@@ -396,17 +505,14 @@ void appMain(gecko_configuration_t *pconfig)
     			  break;
     		  case 8:
     			  read_data.pa_mode = ED.value.data[1];
-    			  retention_write();
     			  reset_on_close = 1;
     			  break;
     		  case 9:
     			  read_data.pa_input = ED.value.data[1];
-    			  retention_write();
     			  reset_on_close = 1;
     			  break;
     		  case 10:
     			  read_data.sleep_clock_accuracy = ED.value.data[1] | (ED.value.data[2] << 8);
-    			  retention_write();
     			  reset_on_close = 1;
     			  break;
     		  case 11:
@@ -449,7 +555,7 @@ void appMain(gecko_configuration_t *pconfig)
 #endif
 #ifdef DCDC
     	  case gattdb_dcdc:
-    		  gecko_cmd_gatt_server_send_user_read_response(ED.connection,gattdb_emu_rstctrl,0,0x18,(uint8*)&DCDC->IPVERSION);
+    		  gecko_cmd_gatt_server_send_user_read_response(ED.connection,gattdb_emu_rstctrl,0,get_dcdc(),(uint8*)&peripheral_data);
 			  break;
 #endif
     	  default:
