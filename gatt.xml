@@ -95,5 +95,37 @@
       <value length="1" type="user" variable_length="false">0x00</value>
       <properties read="true" read_requirement="optional"/>
     </characteristic>
+    
+    <!--Device Data Status-->
+    <characteristic id="device_data_status" name="Device Data Status" sourceId="custom.type" uuid="1f55193f-aec7-439a-bb6d-d7eca046060d">
+      <description>device_data_status</description>
+      <informativeText>Custom characteristic</informativeText>
+      <value length="1" type="user" variable_length="false">0x00</value>
+      <properties indicate="true" indicate_requirement="optional"/>
+    </characteristic>
+    
+    <!--Device Data Data-->
+    <characteristic id="device_data_data" name="Device Data Data" sourceId="custom.type" uuid="e38682a6-1def-443a-bec0-22347a4c58d5">
+      <description>device_data_data</description>
+      <informativeText>Custom characteristic</informativeText>
+      <value length="1" type="user" variable_length="false">0x00</value>
+      <properties notify="true" notify_requirement="optional"/>
+    </characteristic>
+    
+    <!--Peripheral Request-->
+    <characteristic id="peripheral_request" name="Peripheral Request" sourceId="custom.type" uuid="c821d976-32cf-4899-9333-0fd089fddded">
+      <description>peripheral_request</description>
+      <informativeText>Custom characteristic</informativeText>
+      <value length="1" type="user" variable_length="false">0x00</value>
+      <properties write_no_response="true" write_no_response_requirement="optional"/>
+    </characteristic>
+    
+    <!--CMU_ClockEnable-->
+    <characteristic id="cmu_clockenable" name="CMU_ClockEnable" sourceId="custom.type" uuid="684ec522-dde0-4f11-bcb8-db0ac9f7a424">
+      <description>cmu_clockenable</description>
+      <informativeText>Custom characteristic</informativeText>
+      <value length="1" type="user" variable_length="false">0x00</value>
+      <properties write="true" write_requirement="optional"/>
+    </characteristic>
   </service>
 </gatt>

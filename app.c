@@ -25,7 +25,7 @@
 #include "gatt_db.h"
 
 #include "app.h"
-//#include "dump.h"
+#include "dump.h"
 
 #include "common.h"
 #include "struct.h"
@@ -44,6 +44,11 @@
 uint8 adData[31];
 uint8 notify = 0; /* perform notifications of power settings */
 
+struct read_data read_data = {
+		.random_lower = -270,
+		.random_upper = 200,
+		.random_count = 20,
+};
 struct gpio_pin_count gpio_pin_count = {{
 		_GPIO_PORT_A_PIN_COUNT,
 		_GPIO_PORT_B_PIN_COUNT,
@@ -180,6 +185,135 @@ uint8 get_cmu(void) {
 #else
 #  error get_cmu is not implemented for this family
 #endif
+}
+
+#define M(X) { X, #X }
+const struct __attribute__((packed)) clocks {
+	CMU_Clock_TypeDef clock;
+	const char *name;
+} clocks[] = {
+		M(cmuClock_DCDC),
+		M(cmuClock_GPIO),
+};
+const struct __attribute__((packed)) peripherals {
+	void* address;
+	const char *name;
+} peripherals[] = {
+		M(MSC),
+#ifdef DBG
+		M(DBG),
+#endif
+		M(CMU),
+		M(HFXO0),
+		M(HFRCO0),
+		M(DPLL0),
+		M(LFXO),
+		M(LFRCO),
+		M(SMU),
+		M(CRYPTOACC),
+		M(EMU),
+		M(DCDC),
+		M(PRS),
+		M(GPCRC),
+		M(RTCC),
+		M(BURTC),
+		M(BURAM),
+		M(LETIMER0),
+		M(TIMER0),
+		M(TIMER1),
+		M(TIMER2),
+		M(TIMER3),
+		M(TIMER4),
+		M(PDM),
+		M(USART0),
+		M(USART1),
+		M(EUART0),
+		M(I2C0),
+		M(I2C1),
+		M(IADC0),
+		M(GPIO),
+		M(LDMA),
+		M(LDMAXBAR),
+		M(WDOG0),
+};
+
+uint8_t notification_active = 0;
+enum notification_states state = N_DONE;
+uint8_t n_index;
+uint16 n_count;
+
+void start_notification (enum notification_states new_state) {
+#ifdef DUMP
+	printf("start_notification(%d) state: %d\n",new_state, state);
+#endif
+	struct status status;
+	state = new_state;
+	notification_active = 0;
+	n_index = 0;
+	switch(state) {
+	case N_DONE:
+		status.type = N_DONE;
+		status.value_length = 0;
+		status.count = 0;
+		break;
+	default:
+		read_data.flags |= FLAGS_ERROR_NOTIFY_STATE;
+		// no break
+	case N_ERROR:
+		state = N_DONE;
+		status.type = N_ERROR;
+		break;
+	case N_START_CLOCKS:
+		n_count = sizeof(clocks)/sizeof(clocks[0]);
+		status.type = state;
+		status.value_length = sizeof(CMU_Clock_TypeDef);
+		status.count = n_count;
+		break;
+	case N_START_PERIPHERALS:
+		n_count = sizeof(peripherals)/sizeof(peripherals[0]);
+		status.type = state;
+		status.value_length = sizeof(void*);
+		status.count = n_count;
+		break;
+	}
+	gecko_cmd_gatt_server_send_characteristic_notification(conn,gattdb_device_data_status,sizeof(status),(uint8*)&status);
+	state++;
+}
+
+void continue_notification(void) {
+#ifdef DUMP
+	printf("continue_notification() state: %d\n", state);
+#endif
+	uint8 len_const, len_str;
+	const void *data_const, *data_str;
+	switch(state) {
+	case N_CONTINUE_CLOCKS:
+		data_const = &clocks[n_index];
+		len_const = sizeof(clocks[n_index]) - sizeof(const char *);
+		data_str = clocks[n_index].name;
+		len_str = strlen(clocks[n_index].name);
+		break;
+	case N_CONTINUE_PERIPHERALS:
+		data_const = &peripherals[n_index];
+		len_const = sizeof(peripherals[n_index]) - sizeof(const char *);
+		data_str = peripherals[n_index].name;
+		len_str = strlen(peripherals[n_index].name);
+		break;
+	default:
+		start_notification(N_ERROR);
+		return;
+	}
+	memcpy(peripheral_data.buf,data_const,len_const);
+	memcpy(&peripheral_data.buf[len_const],data_str,len_str);
+	struct gecko_msg_gatt_server_send_characteristic_notification_rsp_t *resp;
+	resp = gecko_cmd_gatt_server_send_characteristic_notification(conn, gattdb_device_data_data, len_const + len_str, &peripheral_data.buf[0]);
+	switch(resp->result) {
+	case 0:
+		n_index++;
+		if(n_index == n_count) {
+			start_notification(state+1);
+		}
+	}
 }
 
 #define N_RET 4
@@ -338,7 +472,15 @@ void appMain(gecko_configuration_t *pconfig)
   CMU_ClockEnable(cmuClock_GPIO,1);
   while (1) {
     struct gecko_cmd_packet* evt;
-	evt = gecko_wait_event();
+    if(notification_active) {
+    	evt = gecko_peek_event();
+    	if(NULL == evt) {
+    		continue_notification();
+    		continue;
+    	}
+    } else {
+    	evt = gecko_wait_event();
+    }
 #ifdef DUMP
     dump_event(evt);
 #endif
@@ -358,6 +500,7 @@ void appMain(gecko_configuration_t *pconfig)
     	  }
     	  /* no break */
       case gecko_evt_le_connection_closed_id:
+    	  notification_active = 0;
     	  if(ota_on_close) {
     		  gecko_cmd_dfu_reset(2);
     	  }
@@ -450,6 +593,39 @@ void appMain(gecko_configuration_t *pconfig)
       case gecko_evt_gatt_server_user_write_request_id: /********************************************* gatt_server_user_write_request **/
 #define ED evt->data.evt_gatt_server_user_write_request
     	  result = 0;
+    	  if(gattdb_cmu_clockenable == ED.characteristic) {
+    		  if(ED.value.len != (1+sizeof(CMU_Clock_TypeDef))) {
+    			  result = bg_err_bt_unspecified_error;
+    			  printf("bad size CMU_ClockEnable\n");
+    		  } else {
+    			  CMU_Clock_TypeDef clock;
+    			  _Bool enable = ED.value.data[0];
+    			  memcpy(&clock,&ED.value.data[1],sizeof(CMU_Clock_TypeDef));
+    			  for(int i = 0; i / sizeof(clocks)/sizeof(clocks[0]); i++) {
+    				  if(clocks[i].clock == clock) {
+    					  printf("CMU_ClockEnable(%s,%d)");
+    	    			  //CMU_ClockEnable(clock,enable);
+    	    			  break;
+    				  }
+    			  }
+    		  }
+    	  }
+    	  if(gattdb_peripheral_request == ED.characteristic) {
+    		  if(ED.value.len != 4) {
+    			  result = bg_err_bt_unspecified_error;
+    		  } else {
+    			  uint32_t address;
+    			  memcpy(&address,&ED.value.data[0],4);
+    			  switch(address) {
+    			  case (uint32)CMU:
+    				gecko_cmd_gatt_server_send_characteristic_notification(ED.connection,gattdb_device_data_data,get_cmu(),(uint8*)&peripheral_data);
+    			  	break;
+    			  default:
+      				gecko_cmd_gatt_server_send_characteristic_notification(ED.connection,gattdb_device_data_data,0,NULL);
+      			  	break;
+    			  }
+    		  }
+    	  }
     	  if(gattdb_gpio_config == ED.characteristic) {
     		  if(4 == ED.value.len) {
     			  GPIO_PinModeSet(ED.value.data[0],ED.value.data[1],ED.value.data[2],ED.value.data[3]);
@@ -548,9 +724,14 @@ void appMain(gecko_configuration_t *pconfig)
     		  case 11:
     			  read_data.dtm_channel = ED.value.data[1];
     			  break;
+    		  case 12:
+    			  CMU_ClockEnable(cmuClock_GPIO,1);
+    			  break;
     		  }
     	  }
-		  gecko_cmd_gatt_server_send_user_write_response(ED.connection,ED.characteristic,result);
+    	  if(0x12 == ED.att_opcode) {
+    		  gecko_cmd_gatt_server_send_user_write_response(ED.connection,ED.characteristic,result);
+    	  }
         break;
 #undef ED
 
@@ -603,6 +784,35 @@ void appMain(gecko_configuration_t *pconfig)
     	    if(measurement_active) adv_random_power();
     	    break;
     	#undef ED
+
+    	  case gecko_evt_gatt_server_characteristic_status_id: /*************************************** gatt_server_characteristic_status **/
+#define ED evt->data.evt_gatt_server_characteristic_status
+    		  switch(ED.status_flags) {
+    		  case 1:
+    			  switch(ED.characteristic) {
+    			  case gattdb_device_data_data:
+    				  if(1 == ED.client_config_flags) {
+    				  }
+    				  break;
+    			  case gattdb_device_data_status:
+    				  if(2 == ED.client_config_flags) {
+    					  start_notification(N_NONE + 1);
+    				  }
+    				  break;
+    			  }
+    			  break;
+			  case 2:
+    			  switch(ED.characteristic) {
+    			  case gattdb_device_data_status:
+    				  if(N_WAIT_DONE != state) {
+    					  state++;
+    					  notification_active = 1;
+    				  }
+    			  }
+    			  break;
+    		  }
+    		  break;
+#undef ED
 
       default:
         break;

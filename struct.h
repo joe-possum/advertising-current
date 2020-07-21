@@ -25,6 +25,7 @@ struct __attribute__((__packed__)) tx_power {
 #define FLAGS_CHKSUM_FAIL           (2u)
 #define FLAGS_OTA_ON_CLOSE          (4u)
 #define FLAGS_MEASUREMENT_ACTIVATED (8u)
+#define FLAGS_ERROR_NOTIFY_STATE   (16u)
 
 enum dut_measurement_modes { DMM_EM1, DMM_EM2, DMM_EM3, DMM_EM4H, DMM_EM4S, DMM_DTM_TX, DMM_RANDOM, DMM_TEST };
 
@@ -32,10 +33,6 @@ struct __attribute__((packed)) read_data {
 	uint32 devinfo_part, reason, interval, delay, connection_interval;
 	int16 reqTxPower, TxPower, sleep_clock_accuracy, random_lower, random_upper, random_count;
 	uint8 adLen, pa_mode, pa_input, em01vscale, em23vscale, dcdc_mode, measurement_mode, dtm_channel, flags, pti, vcom, mx25_dp;
-} read_data = {
-		.random_lower = -270,
-		.random_upper = 200,
-		.random_count = 20,
 };
 
 struct __attribute__((packed)) power_settings {
@@ -59,6 +56,17 @@ struct __attribute__((packed)) lynx_cmu {
 union peripheral_data {
 	struct lynx_dcdc lynx_dcdc;
 	struct lynx_cmu lynx_cmu;
+	uint8 buf[255];
+};
+
+enum notification_states { N_NONE = 0,
+	N_START_CLOCKS, N_WAIT_CLOCKS, N_CONTINUE_CLOCKS,
+	N_START_PERIPHERALS, N_WAIT_PERIPHERALS, N_CONTINUE_PERIPHERALS,
+	N_DONE, N_WAIT_DONE, N_ERROR };
+
+struct __attribute__((packed)) status {
+	uint16_t count;
+	uint8_t type, value_length;
 };
 
 #endif /* STRUCT_H_ */
