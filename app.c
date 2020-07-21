@@ -187,6 +187,29 @@ uint8 get_cmu(void) {
 #endif
 }
 
+uint8 get_usart(USART_TypeDef *USART) {
+#if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
+	struct lynx_usart *p = &peripheral_data.lynx_usart;
+	p->ipversion = USART->IPVERSION;
+	p->en = USART->EN;
+	p->ctrl = USART->CTRL;
+	p->frame = USART->FRAME;
+	p->trigctrl = USART->TRIGCTRL;
+	p->status = USART->STATUS;
+	p->clkdiv = USART->CLKDIV;
+	p->ien = USART->IEN;
+	p->irctrl = USART->IRCTRL;
+	p->i2sctrl = USART->I2SCTRL;
+	p->timing = USART->TIMING;
+	p->timecmp0 = USART->TIMECMP0;
+	p->timecmp1 = USART->TIMECMP1;
+	p->timecmp2 = USART->TIMECMP2;
+	return sizeof(struct lynx_usart);
+#else
+#  error get_usart is not implemented for this family
+#endif
+}
+
 #define M(X) { X, #X }
 const struct __attribute__((packed)) clocks {
 	CMU_Clock_TypeDef clock;
@@ -194,6 +217,24 @@ const struct __attribute__((packed)) clocks {
 } clocks[] = {
 		M(cmuClock_DCDC),
 		M(cmuClock_GPIO),
+		M(cmuClock_BURAM),
+		M(cmuClock_BURTC),
+		M(cmuClock_I2C0),
+		M(cmuClock_I2C1),
+		M(cmuClock_IADC0),
+		M(cmuClock_IADCCLK),
+		M(cmuClock_LDMA),
+		M(cmuClock_LDMAXBAR),
+		M(cmuClock_LETIMER0),
+		M(cmuClock_TIMER0),
+		M(cmuClock_TIMER1),
+		M(cmuClock_TIMER2),
+		M(cmuClock_TIMER3),
+		M(cmuClock_TIMER4),
+		M(cmuClock_TRACECLK),
+		M(cmuClock_USART0),
+		M(cmuClock_USART1),
+		M(cmuClock_PRS),
 };
 const struct __attribute__((packed)) peripherals {
 	void* address;
@@ -276,8 +317,11 @@ void start_notification (enum notification_states new_state) {
 		status.count = n_count;
 		break;
 	}
-	gecko_cmd_gatt_server_send_characteristic_notification(conn,gattdb_device_data_status,sizeof(status),(uint8*)&status);
-	state++;
+	if(gecko_cmd_gatt_server_send_characteristic_notification(conn,gattdb_device_data_status,sizeof(status),(uint8*)&status)->result) {
+		gecko_external_signal(1); // nasty hack to retry
+	} else {
+		state++;
+	}
 }
 
 void continue_notification(void) {
@@ -596,15 +640,19 @@ void appMain(gecko_configuration_t *pconfig)
     	  if(gattdb_cmu_clockenable == ED.characteristic) {
     		  if(ED.value.len != (1+sizeof(CMU_Clock_TypeDef))) {
     			  result = bg_err_bt_unspecified_error;
+#ifdef DUMP
     			  printf("bad size CMU_ClockEnable\n");
+#endif
     		  } else {
     			  CMU_Clock_TypeDef clock;
     			  _Bool enable = ED.value.data[0];
     			  memcpy(&clock,&ED.value.data[1],sizeof(CMU_Clock_TypeDef));
-    			  for(int i = 0; i / sizeof(clocks)/sizeof(clocks[0]); i++) {
+    			  for(int i = 0; i < sizeof(clocks)/sizeof(clocks[0]); i++) {
     				  if(clocks[i].clock == clock) {
-    					  printf("CMU_ClockEnable(%s,%d)");
-    	    			  //CMU_ClockEnable(clock,enable);
+#ifdef DUMP
+    					  printf("CMU_ClockEnable(%s,%d)",clocks[i].name,enable);
+#endif
+    	    			  CMU_ClockEnable(clock,enable);
     	    			  break;
     				  }
     			  }
@@ -620,6 +668,10 @@ void appMain(gecko_configuration_t *pconfig)
     			  case (uint32)CMU:
     				gecko_cmd_gatt_server_send_characteristic_notification(ED.connection,gattdb_device_data_data,get_cmu(),(uint8*)&peripheral_data);
     			  	break;
+    			  case (uint32)USART0:
+    			  case (uint32)USART1:
+      				gecko_cmd_gatt_server_send_characteristic_notification(ED.connection,gattdb_device_data_data,get_usart((USART_TypeDef*)address),(uint8*)&peripheral_data);
+      				break;
     			  default:
       				gecko_cmd_gatt_server_send_characteristic_notification(ED.connection,gattdb_device_data_data,0,NULL);
       			  	break;
@@ -682,7 +734,6 @@ void appMain(gecko_configuration_t *pconfig)
 #ifdef DCDC
 #  ifdef DUMP
 					  printf("EMU_DCDCModeSet(%d)\n",ED.value.data[2]);
-
 #  endif
 					  EMU_DCDCModeSet((EMU_DcdcMode_TypeDef)ED.value.data[2]);
 					  read_data.dcdc_mode = ED.value.data[2];
@@ -813,6 +864,10 @@ void appMain(gecko_configuration_t *pconfig)
     		  }
     		  break;
 #undef ED
+
+	  case gecko_evt_system_external_signal_id:
+		  start_notification(state);
+		  break;
 
       default:
         break;

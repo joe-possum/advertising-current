@@ -53,9 +53,14 @@ struct __attribute__((packed)) lynx_cmu {
 	cryptoaccclkctrl, radioclkctrl;
 };
 
+struct __attribute__((packed)) lynx_usart {
+	uint32 ipversion, en, ctrl, frame, trigctrl, status, clkdiv, ien, irctrl, i2sctrl, timing, ctrlx, timecmp0, timecmp1, timecmp2;
+};
+
 union peripheral_data {
 	struct lynx_dcdc lynx_dcdc;
 	struct lynx_cmu lynx_cmu;
+	struct lynx_usart lynx_usart;
 	uint8 buf[255];
 };
 
