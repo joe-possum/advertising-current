@@ -40,9 +40,16 @@ struct __attribute__((packed)) power_settings {
 	int16 values[255];
 };
 
-struct __attribute__((packed)) lynx_dcdc {
-	uint32 ipversion, en, ctrl, em12ctrl0,
-	em23ctrl0, ien, status, lockstatus;
+struct __attribute__((packed)) lynx_msc {
+  uint32_t ipversion, readctrl, writectrl, addrb, wdata, status, ien, userdatasize, misclockword, pwrctrl, pagelock0, pagelock1;
+};
+
+struct __attribute__((packed)) lynx_syscfg {
+  uint32_t ien, chiprevhw, chiprev, ctrl, dmem0retnctrl, dmem0eccaddr, dmem0eccctrl, radioramretnctrl, radioeccctrl, seqrameccaddr, frcrameccaddr, rootdata0, rootdata1, rootlockstatus;
+};
+
+struct __attribute__((packed)) lynx_burtc {
+	uint32 ipversion, en, cfg, status, ien, precnt, cnt, em4wuen, comp;
 };
 
 struct __attribute__((packed)) lynx_cmu {
@@ -53,14 +60,73 @@ struct __attribute__((packed)) lynx_cmu {
 	cryptoaccclkctrl, radioclkctrl;
 };
 
+struct __attribute__((packed)) lynx_hfxo {
+  uint32_t ipversion, xtalcfg, xtalctrl, cfg, ctrl, status, ien;
+};
+
+struct __attribute__((packed)) lynx_hfrco {
+  uint32_t ipversion, ctrl, cal, status, ien;
+};
+
+struct __attribute__((packed)) lynx_dpll {
+  uint32_t ipversion, en, cfg, cfg1, ien, status;
+};
+
+struct __attribute__((packed)) lynx_lfxo {
+  uint32_t ipversion, ctrl, cfg, status, cal, ien, syncbusy;
+};
+
+struct __attribute__((packed)) lynx_lfrco {
+  uint32_t ipversion, ctrl, status, ien, cfg, nomcal, nomcalinv;
+};
+
+struct __attribute__((packed)) lynx_emu {
+  uint32_t decbod, bod3sense, vregvddcmpctrl, pd1paretctrl, ien, em4ctrl, ctrl, templimits, status, temp, rstctrl, rstcause, dgif, dgien, efpif, efpien;
+};
+
+struct __attribute__((packed)) lynx_dcdc {
+  uint32_t ipversion, en, ctrl, em01ctrl0, em23ctrl0, ien, status, lockstatus;
+};
+
+struct __attribute__((packed)) lynx_rtcc {
+  uint32_t ipversion, en, cfg, status, ien, precnt, cnt, combcnt, syncbusy;
+  struct {
+	  uint32_t ctrl, ocvalue, icvalue;
+  } cc[3];
+};
+
 struct __attribute__((packed)) lynx_usart {
 	uint32 ipversion, en, ctrl, frame, trigctrl, status, clkdiv, ien, irctrl, i2sctrl, timing, ctrlx, timecmp0, timecmp1, timecmp2;
 };
 
+struct __attribute__((packed)) lynx_euart {
+	uint32 ipversion, en, cfg0, cfg1, framecfg, irhfcfg, irlfcfg, timingcfg, startframecfg, sigframecfg, clkdiv, trigctrl, ien;
+};
+
+struct __attribute__((packed)) lynx_gpio_port {
+	uint32 ctrl, model, modeh, dout, din;
+};
+
+struct __attribute__((packed)) lynx_gpio {
+	struct lynx_gpio_port ports[4];
+};
+
 union peripheral_data {
-	struct lynx_dcdc lynx_dcdc;
+	struct lynx_msc lynx_msc;
+	struct lynx_syscfg lynx_syscfg;
 	struct lynx_cmu lynx_cmu;
+	struct lynx_hfxo lynx_hfxo;
+	struct lynx_hfrco lynx_hfrco;
+	struct lynx_dpll lynx_dpll;
+	struct lynx_lfxo lynx_lfxo;
+	struct lynx_lfrco lynx_lfrco;
+	struct lynx_emu lynx_emu;
+	struct lynx_dcdc lynx_dcdc;
+	struct lynx_rtcc lynx_rtcc;
+	struct lynx_burtc lynx_burtc;
 	struct lynx_usart lynx_usart;
+	struct lynx_euart lynx_euart;
+	struct lynx_gpio lynx_gpio;
 	uint8 buf[255];
 };
 

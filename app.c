@@ -25,7 +25,7 @@
 #include "gatt_db.h"
 
 #include "app.h"
-#include "dump.h"
+//#include "dump.h"
 
 #include "common.h"
 #include "struct.h"
@@ -138,24 +138,49 @@ void send_power_settings(uint8 connection, uint16 handle, uint16 offset) {
 
 union peripheral_data peripheral_data;
 
-#ifdef DCDC
-uint8 get_dcdc(void) {
+uint8 get_msc(void) {
 #if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
-	struct lynx_dcdc *p = &peripheral_data.lynx_dcdc;
-	p->ipversion = DCDC->IPVERSION;
-	p->en = DCDC->EN;
-	p->ctrl = DCDC->CTRL;
-	p->em12ctrl0 = DCDC->EM01CTRL0;
-	p->em23ctrl0 = DCDC->EM23CTRL0;
-	p->ien = DCDC->IEN;
-	p->status = DCDC->STATUS;
-	p->lockstatus = DCDC->LOCKSTATUS;
-	return sizeof(struct lynx_dcdc);
+  struct lynx_msc *p = &peripheral_data.lynx_msc;
+  p->ipversion = MSC->IPVERSION;
+  p->readctrl = MSC->READCTRL;
+  p->writectrl = MSC->WRITECTRL;
+  p->addrb = MSC->ADDRB;
+  p->wdata = MSC->WDATA;
+  p->status = MSC->STATUS;
+  p->ien = MSC->IEN;
+  p->userdatasize = MSC->USERDATASIZE;
+  p->misclockword = MSC->MISCLOCKWORD;
+  p->pwrctrl = MSC->PWRCTRL;
+  p->pagelock0 = MSC->PAGELOCK0;
+  p->pagelock1 = MSC->PAGELOCK1;
+  return sizeof(struct lynx_msc);
 #else
-#  error get_dcdc is not implemented for this family
+#  error get_msc not defined for this family
 #endif
 }
+
+uint8 get_syscfg(void) {
+#if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
+  struct lynx_syscfg *p = &peripheral_data.lynx_syscfg;
+  p->ien = SYSCFG->IEN;
+  p->chiprevhw = SYSCFG->CHIPREVHW;
+  p->chiprev = SYSCFG->CHIPREV;
+  p->ctrl = SYSCFG->CTRL;
+  p->dmem0retnctrl = SYSCFG->DMEM0RETNCTRL;
+  p->dmem0eccaddr = SYSCFG->DMEM0ECCADDR;
+  p->dmem0eccctrl = SYSCFG->DMEM0ECCCTRL;
+  p->radioramretnctrl = SYSCFG->RADIORAMRETNCTRL;
+  p->radioeccctrl = SYSCFG->RADIOECCCTRL;
+  p->seqrameccaddr = SYSCFG->SEQRAMECCADDR;
+  p->frcrameccaddr = SYSCFG->FRCRAMECCADDR;
+  p->rootdata0 = SYSCFG->ROOTDATA0;
+  p->rootdata1 = SYSCFG->ROOTDATA1;
+  p->rootlockstatus = SYSCFG->ROOTLOCKSTATUS;
+  return sizeof(struct lynx_syscfg);
+#else
+#  error get_syscfg not defined for this family
 #endif
+}
 
 uint8 get_cmu(void) {
 #if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
@@ -187,6 +212,166 @@ uint8 get_cmu(void) {
 #endif
 }
 
+uint8 get_hfxo(HFXO_TypeDef *HFXO) {
+#if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
+  struct lynx_hfxo *p = &peripheral_data.lynx_hfxo;
+  p->ipversion = HFXO->IPVERSION;
+  p->xtalcfg = HFXO->XTALCFG;
+  p->xtalctrl = HFXO->XTALCTRL;
+  p->cfg = HFXO->CFG;
+  p->ctrl = HFXO->CTRL;
+  p->status = HFXO->STATUS;
+  p->ien = HFXO->IEN;
+  return sizeof(struct lynx_hfxo);
+#else
+#  error get_hfxo not defined for this family
+#endif
+}
+
+uint8 get_hfrco(HFRCO_TypeDef *HFRCO) {
+#if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
+  struct lynx_hfrco *p = &peripheral_data.lynx_hfrco;
+  p->ipversion = HFRCO->IPVERSION;
+  p->ctrl = HFRCO->CTRL;
+  p->cal = HFRCO->CAL;
+  p->status = HFRCO->STATUS;
+  p->ien = HFRCO->IEN;
+  return sizeof(struct lynx_hfrco);
+#else
+#  error get_hfrco not defined for this family
+#endif
+}
+
+uint8 get_dpll(DPLL_TypeDef *DPLL) {
+#if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
+  struct lynx_dpll *p = &peripheral_data.lynx_dpll;
+  p->ipversion = DPLL->IPVERSION;
+  p->en = DPLL->EN;
+  p->cfg = DPLL->CFG;
+  p->cfg1 = DPLL->CFG1;
+  p->ien = DPLL->IEN;
+  p->status = DPLL->STATUS;
+  return sizeof(struct lynx_dpll);
+#else
+#  error get_dpll not defined for this family
+#endif
+}
+
+uint8 get_lfxo(void) {
+#if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
+  struct lynx_lfxo *p = &peripheral_data.lynx_lfxo;
+  p->ipversion = LFXO->IPVERSION;
+  p->ctrl = LFXO->CTRL;
+  p->cfg = LFXO->CFG;
+  p->status = LFXO->STATUS;
+  p->cal = LFXO->CAL;
+  p->ien = LFXO->IEN;
+  p->syncbusy = LFXO->SYNCBUSY;
+  return sizeof(struct lynx_lfxo);
+#else
+#  error get_lfxo not defined for this family
+#endif
+}
+
+uint8 get_lfrco(void) {
+#if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
+  struct lynx_lfrco *p = &peripheral_data.lynx_lfrco;
+  p->ipversion = LFRCO->IPVERSION;
+  p->ctrl = LFRCO->CTRL;
+  p->status = LFRCO->STATUS;
+  p->ien = LFRCO->IEN;
+  p->cfg = LFRCO->CFG;
+  p->nomcal = LFRCO->NOMCAL;
+  p->nomcalinv = LFRCO->NOMCALINV;
+  return sizeof(struct lynx_lfrco);
+#else
+#  error get_lfrco not defined for this family
+#endif
+}
+
+uint8 get_emu(void) {
+#if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
+  struct lynx_emu *p = &peripheral_data.lynx_emu;
+  p->decbod = EMU->DECBOD;
+  p->bod3sense = EMU->BOD3SENSE;
+  p->vregvddcmpctrl = EMU->VREGVDDCMPCTRL;
+  p->pd1paretctrl = EMU->PD1PARETCTRL;
+  p->ien = EMU->IEN;
+  p->em4ctrl = EMU->EM4CTRL;
+  p->ctrl = EMU->CTRL;
+  p->templimits = EMU->TEMPLIMITS;
+  p->status = EMU->STATUS;
+  p->temp = EMU->TEMP;
+  p->rstctrl = EMU->RSTCTRL;
+  p->rstcause = EMU->RSTCAUSE;
+  p->dgif = EMU->DGIF;
+  p->dgien = EMU->DGIEN;
+  p->efpif = EMU->EFPIF;
+  p->efpien = EMU->EFPIEN;
+  return sizeof(struct lynx_emu);
+#else
+#  error get_emu not defined for this family
+#endif
+}
+
+uint8 get_dcdc(void) {
+#if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
+  struct lynx_dcdc *p = &peripheral_data.lynx_dcdc;
+  p->ipversion = DCDC->IPVERSION;
+  p->en = DCDC->EN;
+  p->ctrl = DCDC->CTRL;
+  p->em01ctrl0 = DCDC->EM01CTRL0;
+  p->em23ctrl0 = DCDC->EM23CTRL0;
+  p->ien = DCDC->IEN;
+  p->status = DCDC->STATUS;
+  p->lockstatus = DCDC->LOCKSTATUS;
+  return sizeof(struct lynx_dcdc);
+#else
+#  error get_dcdc not defined for this family
+#endif
+}
+
+uint8 get_rtcc(void) {
+#if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
+  struct lynx_rtcc *p = &peripheral_data.lynx_rtcc;
+  p->ipversion = RTCC->IPVERSION;
+  p->en = RTCC->EN;
+  p->cfg = RTCC->CFG;
+  p->status = RTCC->STATUS;
+  p->ien = RTCC->IEN;
+  p->precnt = RTCC->PRECNT;
+  p->cnt = RTCC->CNT;
+  p->combcnt = RTCC->COMBCNT;
+  p->syncbusy = RTCC->SYNCBUSY;
+  for(int i = 0; i < 3; i++) {
+	  p->cc[i].ctrl = RTCC->CC[i].CTRL;
+	  p->cc[i].ocvalue = RTCC->CC[i].OCVALUE;
+	  p->cc[i].icvalue = RTCC->CC[i].ICVALUE;
+  }
+  return sizeof(struct lynx_rtcc);
+#else
+#  error get_rtcc not defined for this family
+#endif
+}
+
+uint8 get_burtc(void) {
+#if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
+  struct lynx_burtc *p = &peripheral_data.lynx_burtc;
+  p->ipversion = BURTC->IPVERSION;
+  p->en = BURTC->EN;
+  p->cfg = BURTC->CFG;
+  p->status = BURTC->STATUS;
+  p->ien = BURTC->IEN;
+  p->precnt = BURTC->PRECNT;
+  p->cnt = BURTC->CNT;
+  p->em4wuen = BURTC->EM4WUEN;
+  p->comp = BURTC->COMP;
+  return sizeof(struct lynx_burtc);
+#else
+#  error get_burtc not defined for this family
+#endif
+}
+
 uint8 get_usart(USART_TypeDef *USART) {
 #if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
 	struct lynx_usart *p = &peripheral_data.lynx_usart;
@@ -210,37 +395,92 @@ uint8 get_usart(USART_TypeDef *USART) {
 #endif
 }
 
+uint8 get_euart(void) {
+#if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
+	struct lynx_euart *p = &peripheral_data.lynx_euart;
+	p->ipversion = EUART0->IPVERSION;
+	p->en = EUART0->EN;
+	p->cfg0 = EUART0->CFG0;
+	p->cfg1 = EUART0->CFG1;
+	p->framecfg = EUART0->FRAMECFG;
+	p->irhfcfg = EUART0->IRHFCFG;
+	p->irlfcfg = EUART0->IRLFCFG;
+	p->timingcfg = EUART0->TIMINGCFG;
+	p->startframecfg = EUART0->STARTFRAMECFG;
+	p->clkdiv = EUART0->CLKDIV;
+	p->trigctrl = EUART0->TRIGCTRL;
+	p->ien = EUART0->IEN;
+	return sizeof(struct lynx_euart);
+#else
+#  error get_usart is not implemented for this family
+#endif
+}
+
+uint8 get_gpio(void) {
+#if defined(_SILICON_LABS_32B_SERIES_2_CONFIG_2)
+	struct lynx_gpio *p = &peripheral_data.lynx_gpio;
+	for(int i = 0; i < 4; i++) {
+		p->ports[i].ctrl = GPIO->P[i].CTRL;
+		p->ports[i].model = GPIO->P[i].MODEL;
+		p->ports[i].modeh = GPIO->P[i].MODEH;
+		p->ports[i].dout = GPIO->P[i].DOUT;
+		p->ports[i].din = GPIO->P[i].DIN;
+	}
+	return sizeof(struct lynx_gpio);
+#else
+#  error get_usart is not implemented for this family
+#endif
+}
+
 #define M(X) { X, #X }
 const struct __attribute__((packed)) clocks {
 	CMU_Clock_TypeDef clock;
 	const char *name;
 } clocks[] = {
-		M(cmuClock_DCDC),
-		M(cmuClock_GPIO),
-		M(cmuClock_BURAM),
-		M(cmuClock_BURTC),
-		M(cmuClock_I2C0),
-		M(cmuClock_I2C1),
-		M(cmuClock_IADC0),
-		M(cmuClock_IADCCLK),
 		M(cmuClock_LDMA),
 		M(cmuClock_LDMAXBAR),
-		M(cmuClock_LETIMER0),
+		/*radioaes
+		 * gpcrc
+		 */
 		M(cmuClock_TIMER0),
 		M(cmuClock_TIMER1),
 		M(cmuClock_TIMER2),
 		M(cmuClock_TIMER3),
-		M(cmuClock_TIMER4),
-		M(cmuClock_TRACECLK),
 		M(cmuClock_USART0),
 		M(cmuClock_USART1),
+		M(cmuClock_IADC0),
+		/* amuxcp0*/
+		M(cmuClock_LETIMER0),
+		/* wdog0 */
+		M(cmuClock_I2C0),
+		M(cmuClock_I2C1),
+		/* syscfg
+		 * dpll0
+		 * hfrco0
+		 * hfxo0
+		 * fsrco
+		 * lfrco
+		 * lfxo
+		 * ulfrco
+		 * */
+		M(cmuClock_EUART0),
+		/* pdm */
+		M(cmuClock_GPIO),
 		M(cmuClock_PRS),
+		M(cmuClock_BURAM),
+		M(cmuClock_BURTC),
+		/* rtcc */
+		M(cmuClock_DCDC),
+		M(cmuClock_IADCCLK),
+		M(cmuClock_TRACECLK),
+		M(cmuClock_TIMER4),
 };
 const struct __attribute__((packed)) peripherals {
 	void* address;
 	const char *name;
 } peripherals[] = {
 		M(MSC),
+		M(SYSCFG),
 #ifdef DBG
 		M(DBG),
 #endif
@@ -507,6 +747,9 @@ void appMain(gecko_configuration_t *pconfig)
 	  configEnablePti();
   }
   gecko_init(pconfig);
+  CMU_ClockEnable(cmuClock_SYSCFG, true);
+  SYSCFG->DMEM0RETNCTRL = 0x02UL;
+
 #if defined(EMU_VSCALE_PRESENT)
   EMU_VScaleEM01(read_data.em01vscale,1);
 #endif
@@ -665,13 +908,52 @@ void appMain(gecko_configuration_t *pconfig)
     			  uint32_t address;
     			  memcpy(&address,&ED.value.data[0],4);
     			  switch(address) {
+    			  case (uint32)MSC:
+    				  gecko_cmd_gatt_server_send_characteristic_notification(ED.connection,gattdb_device_data_data,get_msc(),(uint8*)&peripheral_data);
+    			  	  break;
+    			  case (uint32)SYSCFG:
+    			    gecko_cmd_gatt_server_send_characteristic_notification(ED.connection,gattdb_device_data_data,get_syscfg(),(uint8*)&peripheral_data);
+    			    break;
     			  case (uint32)CMU:
     				gecko_cmd_gatt_server_send_characteristic_notification(ED.connection,gattdb_device_data_data,get_cmu(),(uint8*)&peripheral_data);
     			  	break;
+    			  case (uint32)HFXO0:
+    			    gecko_cmd_gatt_server_send_characteristic_notification(ED.connection,gattdb_device_data_data,get_hfxo(HFXO0),(uint8*)&peripheral_data);
+    			    break;
+    			  case (uint32)HFRCO0:
+    			    gecko_cmd_gatt_server_send_characteristic_notification(ED.connection,gattdb_device_data_data,get_hfrco(HFRCO0),(uint8*)&peripheral_data);
+    			    break;
+    			  case (uint32)DPLL0:
+    			    gecko_cmd_gatt_server_send_characteristic_notification(ED.connection,gattdb_device_data_data,get_dpll(DPLL0),(uint8*)&peripheral_data);
+    			    break;
+    			  case (uint32)LFXO:
+    			    gecko_cmd_gatt_server_send_characteristic_notification(ED.connection,gattdb_device_data_data,get_lfxo(),(uint8*)&peripheral_data);
+    			    break;
+    			  case (uint32)LFRCO:
+    			    gecko_cmd_gatt_server_send_characteristic_notification(ED.connection,gattdb_device_data_data,get_lfrco(),(uint8*)&peripheral_data);
+    			    break;
+    			  case (uint32)EMU:
+    			    gecko_cmd_gatt_server_send_characteristic_notification(ED.connection,gattdb_device_data_data,get_emu(),(uint8*)&peripheral_data);
+    			    break;
+    			  case (uint32)DCDC:
+				    gecko_cmd_gatt_server_send_characteristic_notification(ED.connection,gattdb_device_data_data,get_dcdc(),(uint8*)&peripheral_data);
+    			    break;
+    			  case (uint32)RTCC:
+    			    gecko_cmd_gatt_server_send_characteristic_notification(ED.connection,gattdb_device_data_data,get_rtcc(),(uint8*)&peripheral_data);
+    			    break;
+    			  case (uint32)BURTC:
+    			    gecko_cmd_gatt_server_send_characteristic_notification(ED.connection,gattdb_device_data_data,get_burtc(),(uint8*)&peripheral_data);
+    			    break;
     			  case (uint32)USART0:
     			  case (uint32)USART1:
       				gecko_cmd_gatt_server_send_characteristic_notification(ED.connection,gattdb_device_data_data,get_usart((USART_TypeDef*)address),(uint8*)&peripheral_data);
       				break;
+    			  case (uint32)EUART0:
+					gecko_cmd_gatt_server_send_characteristic_notification(ED.connection,gattdb_device_data_data,get_euart(),(uint8*)&peripheral_data);
+					break;
+    			  case (uint32)GPIO:
+					gecko_cmd_gatt_server_send_characteristic_notification(ED.connection,gattdb_device_data_data,get_gpio(),(uint8*)&peripheral_data);
+					break;
     			  default:
       				gecko_cmd_gatt_server_send_characteristic_notification(ED.connection,gattdb_device_data_data,0,NULL);
       			  	break;
@@ -776,7 +1058,14 @@ void appMain(gecko_configuration_t *pconfig)
     			  read_data.dtm_channel = ED.value.data[1];
     			  break;
     		  case 12:
-    			  CMU_ClockEnable(cmuClock_GPIO,1);
+#ifdef _SILICON_LABS_32B_SERIES_2
+    		  {
+    			  uint32 sysclk_enabled = CMU->CLKEN0 & _CMU_CLKEN0_SYSCFG_MASK;
+    			  if(!sysclk_enabled) CMU_ClockEnable(cmuClock_SYSCFG,true);
+    			  SYSCFG->DMEM0RETNCTRL = (SYSCFG->DMEM0RETNCTRL & ~3) | (ED.value.data[1] & 3);
+    			  if(!sysclk_enabled) CMU_ClockEnable(cmuClock_SYSCFG,false);
+    		  }
+#endif
     			  break;
     		  }
     	  }
